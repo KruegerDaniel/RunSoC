@@ -1,16 +1,16 @@
-import { Flex, Select, Text } from '@radix-ui/themes'
-import { Controller, useFormContext } from 'react-hook-form'
-import { Runnable, SimulationForm } from '@/types/runnable'
+import {Flex, Select, Text} from '@radix-ui/themes';
+import {Controller, useFormContext} from 'react-hook-form';
+import {Runnable, SimulationForm} from '@/types/runnable';
 
 interface Props {
-    field: keyof Runnable
-    options: { value: string; label: string }[]
-    name: string
-    index: number
+    field: keyof Runnable;
+    options: { value: string; label: string }[];
+    name: string;
+    index: number;
 }
 
-const ConfigSelectField = ({ field, options, name, index }: Props) => {
-    const { control } = useFormContext<SimulationForm>()
+const ConfigSelectField = ({field, options, name, index}: Props) => {
+    const {control} = useFormContext<SimulationForm>();
 
     return (
         <Flex direction="column" gap="1">
@@ -18,14 +18,14 @@ const ConfigSelectField = ({ field, options, name, index }: Props) => {
             <Controller
                 control={control}
                 name={`runnables.${index}.${field}` as const}
-                render={({ field: f }) => (
+                render={({field: f}) => (
                     <Select.Root
                         value={f.value?.toString() ?? ''}
                         onValueChange={(val) =>
                             f.onChange(field === 'type' ? val : Number(val))
                         }
                     >
-                        <Select.Trigger className="w-24" />
+                        <Select.Trigger className="w-24"/>
                         <Select.Content>
                             {options.map((opt) => (
                                 <Select.Item key={opt.value} value={opt.value}>
@@ -37,7 +37,7 @@ const ConfigSelectField = ({ field, options, name, index }: Props) => {
                 )}
             />
         </Flex>
-    )
-}
+    );
+};
 
-export default ConfigSelectField
+export default ConfigSelectField;

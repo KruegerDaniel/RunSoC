@@ -1,26 +1,26 @@
-import { Box, Flex, IconButton, Text, TextField } from '@radix-ui/themes'
-import { Cross2Icon } from '@radix-ui/react-icons'
-import { Runnable } from '@/types/runnable'
-import { useFormContext, Controller } from 'react-hook-form'
-import ConfigSelectField from './ConfigSelectField'
-import DependencySelector from './DependencySelector'
-import {criticalityOptions, typeOptions} from "@/app/constants"
+import {Box, Flex, IconButton, Text, TextField} from '@radix-ui/themes';
+import {Cross2Icon} from '@radix-ui/react-icons';
+import {Runnable} from '@/types/runnable';
+import {Controller, useFormContext} from 'react-hook-form';
+import ConfigSelectField from './ConfigSelectField';
+import DependencySelector from './DependencySelector';
+import {criticalityOptions, typeOptions} from '@/app/constants';
 
 interface Props {
-    runnable: Runnable
-    index: number
-    numCores: number
-    allRunnables: { id: string; name: string }[]
-    onRemove: (id: string) => void
+    runnable: Runnable;
+    index: number;
+    numCores: number;
+    allRunnables: { id: string; name: string }[];
+    onRemove: (id: string) => void;
 }
 
-const RunnableCard = ({ runnable, index, numCores, allRunnables, onRemove }: Props) => {
-    const { register, control } = useFormContext()
+const RunnableCard = ({runnable, index, numCores, allRunnables, onRemove}: Props) => {
+    const {register, control} = useFormContext();
 
-    const affinityOptions = Array.from({ length: numCores }, (_, i) => ({
+    const affinityOptions = Array.from({length: numCores}, (_, i) => ({
         value: i.toString(),
         label: `Core ${i}`,
-    }))
+    }));
 
     return (
         <Box className="border rounded-lg p-4 bg-gray-50 relative">
@@ -31,7 +31,7 @@ const RunnableCard = ({ runnable, index, numCores, allRunnables, onRemove }: Pro
                     onClick={() => onRemove(runnable.id)}
                     aria-label="Remove Runnable"
                 >
-                    <Cross2Icon />
+                    <Cross2Icon/>
                 </IconButton>
             </div>
 
@@ -86,7 +86,7 @@ const RunnableCard = ({ runnable, index, numCores, allRunnables, onRemove }: Pro
                     <Controller
                         control={control}
                         name={`runnables.${index}.dependencies` as const}
-                        render={({ field }) => (
+                        render={({field}) => (
                             <DependencySelector
                                 allRunnables={allRunnables}
                                 selfId={runnable.id}
@@ -98,7 +98,7 @@ const RunnableCard = ({ runnable, index, numCores, allRunnables, onRemove }: Pro
                 </Flex>
             </Flex>
         </Box>
-    )
-}
+    );
+};
 
-export default RunnableCard
+export default RunnableCard;

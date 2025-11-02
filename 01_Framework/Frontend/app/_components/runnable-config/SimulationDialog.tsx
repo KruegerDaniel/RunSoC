@@ -1,7 +1,7 @@
-'use client'
+'use client';
 
-import { Button, Dialog, Flex, RadioGroup } from '@radix-ui/themes'
-import type { Algorithm } from '@/types/algorithms'
+import {Button, Dialog, Flex, RadioGroup} from '@radix-ui/themes';
+import type {Algorithm} from '@/types/algorithms';
 
 type Props = {
     open: boolean
@@ -13,13 +13,13 @@ type Props = {
 }
 
 const SimulationDialog = ({
-                              open,
-                              loading = false,
-                              selected,
-                              onOpenChange,
-                              onChangeAlgorithm,
-                              onConfirm,
-                          }: Props) => {
+    open,
+    loading = false,
+    selected,
+    onOpenChange,
+    onChangeAlgorithm,
+    onConfirm,
+}: Props) => {
     return (
         <Dialog.Root open={open} onOpenChange={onOpenChange}>
             <Dialog.Content>
@@ -32,7 +32,7 @@ const SimulationDialog = ({
                 >
                     <RadioGroup.Item value="all">All</RadioGroup.Item>
                     <RadioGroup.Item value="fcfs">First Come – First Serve</RadioGroup.Item>
-                    <RadioGroup.Item value="criticality">Criticality</RadioGroup.Item>
+                    <RadioGroup.Item value="criticality">Priority-aware</RadioGroup.Item>
                 </RadioGroup.Root>
 
                 <Flex gap="3" mt="4" justify="end">
@@ -45,7 +45,7 @@ const SimulationDialog = ({
                 </Flex>
             </Dialog.Content>
         </Dialog.Root>
-    )
-}
+    );
+};
 
-export default SimulationDialog
+export default SimulationDialog;

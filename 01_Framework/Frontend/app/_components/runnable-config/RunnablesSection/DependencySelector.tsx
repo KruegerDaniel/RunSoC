@@ -1,22 +1,22 @@
-'use client'
+'use client';
 
-import { useState, useMemo } from 'react'
+import {useMemo, useState} from 'react';
 
 export interface DependencySelectorProps {
-    allRunnables: { id: string; name: string }[]
-    selfId: string
-    selected: string[]
-    onChange: (deps: string[]) => void
+    allRunnables: { id: string; name: string }[];
+    selfId: string;
+    selected: string[];
+    onChange: (deps: string[]) => void;
 }
 
 const DependencySelector = ({
-                                allRunnables,
-                                selfId,
-                                selected,
-                                onChange,
-                            }: DependencySelectorProps) => {
-    const [search, setSearch] = useState('')
-    const [focused, setFocused] = useState(false)
+    allRunnables,
+    selfId,
+    selected,
+    onChange,
+}: DependencySelectorProps) => {
+    const [search, setSearch] = useState('');
+    const [focused, setFocused] = useState(false);
 
     const filtered = useMemo(
         () =>
@@ -24,32 +24,32 @@ const DependencySelector = ({
                 (r) =>
                     r.id !== selfId &&
                     !selected.includes(r.id) &&
-                    r.name.toLowerCase().includes(search.toLowerCase())
+                    r.name.toLowerCase().includes(search.toLowerCase()),
             ),
-        [allRunnables, selfId, selected, search]
-    )
+        [allRunnables, selfId, selected, search],
+    );
 
     const handleAdd = (id: string) => {
-        onChange([...selected, id])
-        setSearch('')
-    }
+        onChange([...selected, id]);
+        setSearch('');
+    };
 
     const handleRemove = (id: string) => {
-        onChange(selected.filter((d) => d !== id))
-    }
+        onChange(selected.filter((d) => d !== id));
+    };
 
     return (
         <div className="relative">
             {/* Selected chips */}
             <div className="flex flex-wrap gap-1 mb-1">
                 {selected.map((depId) => {
-                    const dep = allRunnables.find((r) => r.id === depId)
+                    const dep = allRunnables.find((r) => r.id === depId);
                     return (
                         <span
                             key={depId}
                             className="inline-flex items-center bg-indigo-100 text-indigo-800 rounded px-2 py-0.5 text-xs"
                         >
-              {dep?.name ?? depId}
+                            {dep?.name ?? depId}
                             <button
                                 type="button"
                                 className="ml-1 text-indigo-500 hover:text-red-500"
@@ -57,9 +57,9 @@ const DependencySelector = ({
                                 aria-label={`Remove ${dep?.name ?? depId}`}
                             >
                 ×
-              </button>
-            </span>
-                    )
+                            </button>
+                        </span>
+                    );
                 })}
             </div>
 
@@ -74,15 +74,16 @@ const DependencySelector = ({
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && filtered.length > 0) {
-                        handleAdd(filtered[0].id)
-                        e.preventDefault()
+                        handleAdd(filtered[0].id);
+                        e.preventDefault();
                     }
                 }}
             />
 
             {/* Dropdown */}
             {focused && filtered.length > 0 && (
-                <div className="absolute left-0 right-0 border rounded bg-white shadow mt-1 max-h-32 overflow-y-auto z-10">
+                <div
+                    className="absolute left-0 right-0 border rounded bg-white shadow mt-1 max-h-32 overflow-y-auto z-10">
                     {filtered.map((r) => (
                         <div
                             key={r.id}
@@ -95,7 +96,7 @@ const DependencySelector = ({
                 </div>
             )}
         </div>
-    )
-}
+    );
+};
 
-export default DependencySelector
+export default DependencySelector;

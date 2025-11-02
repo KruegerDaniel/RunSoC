@@ -15,12 +15,12 @@ type Props = {
 }
 
 const SortControls = ({
-                          sortKey,
-                          sortDir,
-                          options,
-                          onChangeKey,
-                          onToggleDir,
-                      }: Props) => {
+    sortKey,
+    sortDir,
+    options,
+    onChangeKey,
+    onToggleDir,
+}: Props) => {
     return (
         <Flex align="center" gap="2">
             <Text size="2">Sort by</Text>

@@ -1,38 +1,38 @@
-'use client'
+'use client';
 
-import { Button, Flex, Text } from '@radix-ui/themes'
-import { useMemo } from 'react'
-import { useFormContext } from 'react-hook-form'
-import type { SimulationForm, Runnable } from '@/types/runnable'
-import SortControls from '../SortControls'
-import RunnableCard from './RunnableCard'
-import { useRunnablesSorting, type SortKey } from '../hooks/useRunnablesSorting'
+import {Button, Flex, Text} from '@radix-ui/themes';
+import {useMemo} from 'react';
+import {useFormContext} from 'react-hook-form';
+import type {Runnable, SimulationForm} from '@/types/runnable';
+import SortControls from '../SortControls';
+import RunnableCard from './RunnableCard';
+import {type SortKey, useRunnablesSorting} from '../hooks/useRunnablesSorting';
 
 interface Props {
-    runnables: Runnable[]
-    numCores: number
-    onAdd: () => void
-    onRemove: (id: string) => void
+    runnables: Runnable[];
+    numCores: number;
+    onAdd: () => void;
+    onRemove: (id: string) => void;
 }
 
-const RunnablesSection = ({ runnables, numCores, onAdd, onRemove }: Props) => {
-    const { setValue } = useFormContext<SimulationForm>()
-    const { sortKey, sortDir, setSortKey, setSortDir, sortWith } = useRunnablesSorting()
+const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
+    const {setValue} = useFormContext<SimulationForm>();
+    const {sortKey, sortDir, setSortKey, setSortDir, sortWith} = useRunnablesSorting();
 
     const sortOptions = useMemo(
         () => [
-            { value: 'id', label: 'ID' },
-            { value: 'criticality', label: 'Criticality' },
-            { value: 'execution_time', label: 'Execution Time' },
-            { value: 'name', label: 'Name' },
+            {value: 'id', label: 'ID'},
+            {value: 'criticality', label: 'Criticality'},
+            {value: 'execution_time', label: 'Execution Time'},
+            {value: 'name', label: 'Name'},
         ],
-        []
-    )
+        [],
+    );
 
     const allRunnableNames = useMemo(
-        () => runnables.map((r) => ({ id: r.id, name: r.name })),
-        [runnables]
-    )
+        () => runnables.map((r) => ({id: r.id, name: r.name})),
+        [runnables],
+    );
 
     return (
         <div>
@@ -47,14 +47,14 @@ const RunnablesSection = ({ runnables, numCores, onAdd, onRemove }: Props) => {
                         sortDir={sortDir}
                         options={sortOptions}
                         onChangeKey={(k) => {
-                            const key = k as SortKey
-                            setValue('runnables', sortWith(runnables, key, sortDir), { shouldDirty: true })
-                            setSortKey(key)
+                            const key = k as SortKey;
+                            setValue('runnables', sortWith(runnables, key, sortDir), {shouldDirty: true});
+                            setSortKey(key);
                         }}
                         onToggleDir={() => {
-                            const nextDir = sortDir === 'asc' ? 'desc' : 'asc'
-                            setValue('runnables', sortWith(runnables, sortKey, nextDir), { shouldDirty: true })
-                            setSortDir(nextDir)
+                            const nextDir = sortDir === 'asc' ? 'desc' : 'asc';
+                            setValue('runnables', sortWith(runnables, sortKey, nextDir), {shouldDirty: true});
+                            setSortDir(nextDir);
                         }}
                     />
 
@@ -77,7 +77,7 @@ const RunnablesSection = ({ runnables, numCores, onAdd, onRemove }: Props) => {
                 ))}
             </Flex>
         </div>
-    )
-}
+    );
+};
 
-export default RunnablesSection
+export default RunnablesSection;

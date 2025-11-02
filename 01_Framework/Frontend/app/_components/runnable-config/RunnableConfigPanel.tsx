@@ -1,7 +1,7 @@
 'use client';
 
-import {ChangeEvent, useRef, useState} from 'react';
-import {Box, Button, Dialog, Flex, Heading, RadioGroup, ScrollArea, Text, TextField,} from '@radix-ui/themes';
+import {useRef, useState} from 'react';
+import {Box, Button, Flex, Heading, ScrollArea, Text, TextField} from '@radix-ui/themes';
 import {useFormContext} from 'react-hook-form';
 import type {SimulationForm} from '@/types/runnable';
 import type {Algorithm} from '@/types/algorithms';
@@ -27,12 +27,6 @@ const RunnableConfigPanel = () => {
     const handleImport = useImportJson(setValue);
 
     const formRef = useRef<HTMLFormElement>(null);
-
-    const handleImportJSON = (e: ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) handleImport(file);
-        e.target.value = '';
-    };
 
     const handleAddRunnable = () => {
         const nextId = (
@@ -60,12 +54,12 @@ const RunnableConfigPanel = () => {
                     ...r,
                     dependencies: r.dependencies.filter((d) => d !== id),
                 })),
-            {shouldDirty: true}
+            {shouldDirty: true},
         );
     };
 
-    const onSubmit = async (values: SimulationForm) => {
-        await runSimulation(values, selectedAlgorithm);
+    const onSubmit = async () => {
+        await runSimulation(selectedAlgorithm);
     };
 
     return (
@@ -133,8 +127,8 @@ const RunnableConfigPanel = () => {
                 onOpenChange={setDialogOpen}
                 onChangeAlgorithm={setSelectedAlgorithm}
                 onConfirm={() => {
-                    setDialogOpen(false)
-                    formRef.current?.requestSubmit()
+                    setDialogOpen(false);
+                    formRef.current?.requestSubmit();
                 }}
             />
 

@@ -1,7 +1,7 @@
-'use client'
+'use client';
 
-import { Button } from '@radix-ui/themes'
-import { ChangeEvent } from 'react'
+import {Button} from '@radix-ui/themes';
+import {ChangeEvent} from 'react';
 
 type Props = {
     onFile: (file: File) => void
@@ -11,17 +11,17 @@ type Props = {
 }
 
 const ImportJsonButton = ({
-                              onFile,
-                              label = 'Import JSON',
-                              accept = 'application/json',
-                              disabled,
-                          }: Props) => {
+    onFile,
+    label = 'Import JSON',
+    accept = 'application/json',
+    disabled,
+}: Props) => {
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (file) onFile(file)
+        const file = e.target.files?.[0];
+        if (file) onFile(file);
         // reset input so the same file can be re-selected if needed
-        e.target.value = ''
-    }
+        e.target.value = '';
+    };
 
     return (
         <label className="relative inline-block">
@@ -37,7 +37,7 @@ const ImportJsonButton = ({
                 {label}
             </Button>
         </label>
-    )
-}
+    );
+};
 
-export default ImportJsonButton
+export default ImportJsonButton;
