@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation';
 import ResultTabs from './ResultTabs';
-import {headers} from 'next/headers';
 
 type ExecutionLogEntry = {
     start: number;
@@ -17,12 +16,12 @@ type AlgorithmResult = {
 };
 
 type MultiAlgorithmResult = Record<string, AlgorithmResult>;
-async function getResult(baseUrl: string, id: string) {
 
-    const res = await fetch(`${baseUrl}/api/simulate?id=${id}`, {
+async function getResult(id: string) {
+    const res = await fetch(`http://127.0.0.1:3000/api/simulate?id=${id}`, {
+        // we want the latest from memory
         cache: 'no-store',
     });
-
     if (!res.ok) return null;
     return res.json();
 }
@@ -33,13 +32,7 @@ export default async function ResultPage({
     params: Promise<{ id: string }>;
 }) {
     const { id } = await params;
-
-    const h = await headers();
-    const host = h.get('x-forwarded-host') || h.get('host') || 'localhost:3000';
-    const proto = h.get('x-forwarded-proto') || 'http';
-    const baseurl = `${proto}://${host}`;
-
-    const res = await getResult(baseurl, id);
+    const res = await getResult(id);
     if (!res) return notFound();
 
     const results: MultiAlgorithmResult =
@@ -59,10 +52,7 @@ export default async function ResultPage({
     return (
         <div className="max-w-4xl mx-auto py-10 px-4">
             <h1 className="text-3xl font-bold mb-6">Simulation Result: {id}</h1>
-            <ResultTabs
-                availableAlgorithms={availableAlgorithms}
-                results={results}
-            />
+            <ResultTabs availableAlgorithms={availableAlgorithms} results={results} />
         </div>
     );
 }

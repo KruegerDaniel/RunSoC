@@ -1,5 +1,5 @@
-import { Runnable } from '@/types/runnable';
 import { NextRequest, NextResponse } from 'next/server';
+import { Runnable } from '@/types/runnable';
 
 const resultStore: Record<string, unknown> = {};
 
@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
 
     try {
-        console.log('[simulate] calling backend:', BACKEND_URL);
+        console.log('[simulate/POST] calling backend:', BACKEND_URL);
 
         const backendRes = await fetch(BACKEND_URL, {
             method: 'POST',
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         if (!backendRes.ok) {
             const text = await backendRes.text().catch(() => '');
             console.error(
-                '[simulate] backend returned non-OK:',
+                '[simulate/POST] backend returned non-OK:',
                 backendRes.status,
                 text.slice(0, 300),
             );
@@ -50,11 +50,12 @@ export async function POST(req: NextRequest) {
 
         const resultId = Math.random().toString(36).substring(2, 10);
         const payload = { resultId, ...backendData };
+
         resultStore[resultId] = payload;
 
         return NextResponse.json(payload);
     } catch (e) {
-        console.error('[simulate] fetch failed:', e);
+        console.error('[simulate/POST] fetch failed:', e);
         return NextResponse.json(
             {
                 error: 'Failed to connect to backend',
