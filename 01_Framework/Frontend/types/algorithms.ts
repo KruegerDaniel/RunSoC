@@ -1,1 +1,3 @@
-export type Algorithm = 'all' | 'fcfs' | 'criticality'
+export type Algorithm = 'all' | 'fcfs' | 'criticality' | 'main';
+
+export type AllocationPolicy = 'static' | 'dynamic' | 'all';

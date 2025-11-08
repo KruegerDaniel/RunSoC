@@ -22,7 +22,6 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
     num_cores = int(data.get('numCores', 1))
     simulation_time = int(data.get('simulationTime', 400))
     algorithm = data.get('algorithm', 'all')
-    allocation_policy = data.get('allocationPolicy', 'static')
     scheduling_policy = data.get('schedulingPolicy', '../scheduling/fcfs')
 
     runnables = normalize_runnables(runnables)
@@ -79,32 +78,44 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
     # 3) Main scheduler (your static/dynamic)
     if algorithm in ('all', 'main'):
         tasks_for_main = to_main_tasks(runnables)
-        schedule_entries, finish_time, extra_wait = run_main_scheduler(
-            tasks_for_main,
-            num_cores,
-            scheduling_policy=scheduling_policy,
-            allocation_policy=allocation_policy,
-        )
-        gantt_main = create_gantt_chart_from_main(
-            schedule_entries,
-            title=f"Main Scheduler ({allocation_policy})"
-        )
-        results['main'] = {
-            'totalExecutionTime': finish_time,
-            'extraWait': extra_wait,
-            'allocationPolicy': allocation_policy,
-            'executionLog': [
-                {
-                    'start': e.start_time,
-                    'end': e.finish_time,
-                    'task': e.task,
-                    'eligibleTime': e.eligible_time,
-                    'core': e.core,
-                }
-                for e in schedule_entries
-            ],
-            'ganttChart': gantt_main,
-        }
+
+        requested = data.get('allocationPolicy', 'static').lower()
+
+        if requested in ('both', 'all') and algorithm in ('all', 'main'):
+            policies = ['static', 'dynamic']
+        else:
+            policies = [requested]
+
+        main_results = {}
+        for policy in policies:
+            schedule_entries, finish_time, extra_wait = run_main_scheduler(
+                tasks_for_main,
+                num_cores,
+                scheduling_policy=scheduling_policy,
+                allocation_policy=policy,
+            )
+            gantt_main = create_gantt_chart_from_main(
+                schedule_entries,
+                title=f"Main Scheduler ({policy})"
+            )
+            main_results[policy] = {
+                'totalExecutionTime': finish_time,
+                'extraWait': extra_wait,
+                'allocationPolicy': policy,
+                'executionLog': [
+                    {
+                        'start': e.start_time,
+                        'end': e.finish_time,
+                        'task': e.task,
+                        'eligibleTime': e.eligible_time,
+                        'core': e.core,
+                    }
+                    for e in schedule_entries
+                ],
+                'ganttChart': gantt_main,
+            }
+
+        results['main'] = main_results
 
     # single algorithm responses
     if algorithm == 'fcfs':

@@ -4,7 +4,7 @@ import {useRef, useState} from 'react';
 import {Box, Button, Flex, Heading, ScrollArea, Text, TextField} from '@radix-ui/themes';
 import {useFormContext} from 'react-hook-form';
 import type {SimulationForm} from '@/types/runnable';
-import type {Algorithm} from '@/types/algorithms';
+import type {Algorithm, AllocationPolicy} from '@/types/algorithms';
 
 import ImportJsonButton from './ImportJsonButton';
 import SimulationDialog from './SimulationDialog';
@@ -22,6 +22,8 @@ const RunnableConfigPanel = () => {
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedAlgorithm, setSelectedAlgorithm] = useState<Algorithm>('all');
+    const [selectedAllocationPolicy, setSelectedAllocationPolicy] = useState<AllocationPolicy>('all');
+
 
     const {loading, resultId, runSimulation} = useSimulationRunner(getValues);
     const handleImport = useImportJson(setValue);
@@ -59,7 +61,7 @@ const RunnableConfigPanel = () => {
     };
 
     const onSubmit = async () => {
-        await runSimulation(selectedAlgorithm);
+        await runSimulation(selectedAlgorithm, selectedAllocationPolicy);
     };
 
     return (
@@ -124,13 +126,16 @@ const RunnableConfigPanel = () => {
                 open={dialogOpen}
                 loading={loading}
                 selected={selectedAlgorithm}
+                selectedAllocationPolicy={selectedAllocationPolicy}
                 onOpenChange={setDialogOpen}
                 onChangeAlgorithm={setSelectedAlgorithm}
+                onChangeAllocationPolicy={setSelectedAllocationPolicy}
                 onConfirm={() => {
                     setDialogOpen(false);
                     formRef.current?.requestSubmit();
                 }}
             />
+
 
         </div>
     );

@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import type { SimulationForm } from '@/types/runnable';
-import type { Algorithm } from '@/types/algorithms';
+import type {Algorithm, AllocationPolicy} from '@/types/algorithms';
 
 export function useSimulationRunner(getValues: () => SimulationForm) {
     const [loading, setLoading] = useState(false);
     const [resultId, setResultId] = useState<string | null>(null);
 
-    const runSimulation = async (algorithm: Algorithm) => {
+    const runSimulation = async (algorithm: Algorithm, allocationPolicy: AllocationPolicy) => {
         const values = getValues(); // always latest
         setLoading(true);
 
@@ -19,6 +19,7 @@ export function useSimulationRunner(getValues: () => SimulationForm) {
                 body: JSON.stringify({
                     ...values,
                     algorithm,
+                    allocationPolicy,
                 }),
             });
 

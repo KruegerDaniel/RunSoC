@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Runnable } from '@/types/runnable';
+import {NextRequest, NextResponse} from 'next/server';
+import {Runnable} from '@/types/runnable';
 
 const resultStore: Record<string, unknown> = {};
 
@@ -14,17 +14,18 @@ export async function POST(req: NextRequest) {
 
         const backendRes = await fetch(BACKEND_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 runnables: Object.fromEntries(
                     data.runnables.map((r: Runnable) => [
                         r.name,
-                        { ...r, deps: r.dependencies },
+                        {...r, deps: r.dependencies},
                     ]),
                 ),
                 numCores: data.numCores,
                 simulationTime: 400,
                 algorithm: data.algorithm ?? 'all',
+                allocationPolicy: data.allocationPolicy ?? 'static',
             }),
         });
 
@@ -42,14 +43,14 @@ export async function POST(req: NextRequest) {
                     body: text,
                     target: BACKEND_URL,
                 },
-                { status: 502 },
+                {status: 502},
             );
         }
 
         const backendData = await backendRes.json();
 
         const resultId = Math.random().toString(36).substring(2, 10);
-        const payload = { resultId, ...backendData };
+        const payload = {resultId, ...backendData};
 
         resultStore[resultId] = payload;
 
@@ -62,17 +63,17 @@ export async function POST(req: NextRequest) {
                 details: String(e),
                 target: BACKEND_URL,
             },
-            { status: 500 },
+            {status: 500},
         );
     }
 }
 
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
+    const {searchParams} = new URL(req.url);
     const resultId = searchParams.get('id');
 
     if (!resultId || !resultStore[resultId]) {
-        return NextResponse.json({ error: 'Result not found' }, { status: 404 });
+        return NextResponse.json({error: 'Result not found'}, {status: 404});
     }
 
     return NextResponse.json(resultStore[resultId]);
