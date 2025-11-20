@@ -1,7 +1,16 @@
 'use client';
 
 import {useRef, useState} from 'react';
-import {Box, Button, Flex, Heading, ScrollArea, Text, TextField} from '@radix-ui/themes';
+import {
+    Box,
+    Button,
+    Flex,
+    Heading,
+    ScrollArea,
+    Text,
+    TextField,
+    DropdownMenu,
+} from '@radix-ui/themes';
 import {useFormContext} from 'react-hook-form';
 import type {SimulationForm} from '@/types/runnable';
 import type {Algorithm, AllocationPolicy} from '@/types/algorithms';
@@ -22,8 +31,8 @@ const RunnableConfigPanel = () => {
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedAlgorithm, setSelectedAlgorithm] = useState<Algorithm>('all');
-    const [selectedAllocationPolicy, setSelectedAllocationPolicy] = useState<AllocationPolicy>('all');
-
+    const [selectedAllocationPolicy, setSelectedAllocationPolicy] =
+        useState<AllocationPolicy>('all');
 
     const {loading, resultId, runSimulation} = useSimulationRunner(getValues);
     const handleImport = useImportJson(setValue);
@@ -60,6 +69,10 @@ const RunnableConfigPanel = () => {
         );
     };
 
+    const handleResetRunnables = () => {
+        setValue('runnables', [], {shouldDirty: true});
+    };
+
     const onSubmit = async () => {
         await runSimulation(selectedAlgorithm, selectedAllocationPolicy);
     };
@@ -72,8 +85,31 @@ const RunnableConfigPanel = () => {
                     <Flex justify="between" align="center" mb="6">
                         <Heading className="text-2xl font-bold">Configuration</Heading>
 
-                        {/* Import JSON */}
-                        <ImportJsonButton onFile={handleImport}/>
+                        <Flex gap="2" align="center">
+                            <ImportJsonButton onFile={handleImport} />
+
+                            {/* Download dropdown */}
+                            <DropdownMenu.Root>
+                                <DropdownMenu.Trigger>
+                                    <Button type="button" variant="outline">Download</Button>
+                                </DropdownMenu.Trigger>
+
+                                <DropdownMenu.Content>
+                                    <DropdownMenu.Item asChild>
+                                        <a href="/template_json.json" download>
+                                            Template JSON
+                                        </a>
+                                    </DropdownMenu.Item>
+
+                                    <DropdownMenu.Item asChild>
+                                        <a href="/example_json.json" download>
+                                            Example JSON
+                                        </a>
+                                    </DropdownMenu.Item>
+                                </DropdownMenu.Content>
+                            </DropdownMenu.Root>
+
+                        </Flex>
                     </Flex>
 
                     {/* Number of cores */}
@@ -97,6 +133,18 @@ const RunnableConfigPanel = () => {
                             onAdd={handleAddRunnable}
                             onRemove={handleRemoveRunnable}
                         />
+
+                        {/* Reset all runnables */}
+                        <Flex justify="end" mt="2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={!runnables.length}
+                                onClick={handleResetRunnables}
+                            >
+                                Reset Runnables
+                            </Button>
+                        </Flex>
                     </Box>
 
                     {/* Simulation buttons */}
@@ -135,8 +183,6 @@ const RunnableConfigPanel = () => {
                     formRef.current?.requestSubmit();
                 }}
             />
-
-
         </div>
     );
 };

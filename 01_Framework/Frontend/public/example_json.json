@@ -1,0 +1,225 @@
+{
+  "numCores": 6,
+  "runnables": [
+    {
+      "id": "1",
+      "name": "Runnable1",
+      "criticality": 1,
+      "priority": 1,
+      "affinity": 0,
+      "period": 100,
+      "execution_time": 15,
+      "type": "periodic",
+      "dependencies": []
+    },
+    {
+      "id": "2",
+      "name": "Runnable2",
+      "criticality": 2,
+      "priority": 2,
+      "affinity": 0,
+      "period": 180,
+      "execution_time": 20,
+      "type": "periodic",
+      "dependencies": []
+    },
+    {
+      "id": "3",
+      "name": "Runnable3",
+      "criticality": 1,
+      "priority": 1,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 25,
+      "type": "event",
+      "dependencies": ["1"]
+    },
+    {
+      "id": "4",
+      "name": "Runnable4",
+      "criticality": 4,
+      "priority": 4,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 30,
+      "type": "event",
+      "dependencies": ["2"]
+    },
+    {
+      "id": "5",
+      "name": "Runnable5",
+      "criticality": 3,
+      "priority": 3,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 20,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "6",
+      "name": "Runnable6",
+      "criticality": 1,
+      "priority": 1,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 35,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "7",
+      "name": "Runnable7",
+      "criticality": 2,
+      "priority": 2,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 40,
+      "type": "event",
+      "dependencies": ["6"]
+    },
+    {
+      "id": "8",
+      "name": "Runnable8",
+      "criticality": 1,
+      "priority": 1,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 25,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "9",
+      "name": "Runnable9",
+      "criticality": 0,
+      "priority": 0,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 30,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "10",
+      "name": "Runnable10",
+      "criticality": 4,
+      "priority": 4,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 20,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "11",
+      "name": "Runnable11",
+      "criticality": 2,
+      "priority": 2,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 45,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "12",
+      "name": "Runnable12",
+      "criticality": 0,
+      "priority": 0,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 30,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "13",
+      "name": "Runnable13",
+      "criticality": 3,
+      "priority": 3,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 35,
+      "type": "event",
+      "dependencies": ["8"]
+    },
+    {
+      "id": "14",
+      "name": "Runnable14",
+      "criticality": 1,
+      "priority": 1,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 25,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "15",
+      "name": "Runnable15",
+      "criticality": 3,
+      "priority": 3,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 40,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "16",
+      "name": "Runnable16",
+      "criticality": 3,
+      "priority": 3,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 20,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "17",
+      "name": "Runnable17",
+      "criticality": 4,
+      "priority": 4,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 50,
+      "type": "event",
+      "dependencies": []
+    },
+    {
+      "id": "18",
+      "name": "Runnable18",
+      "criticality": 1,
+      "priority": 1,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 25,
+      "type": "event",
+      "dependencies": ["3"]
+    },
+    {
+      "id": "19",
+      "name": "Runnable19",
+      "criticality": 4,
+      "priority": 4,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 35,
+      "type": "event",
+      "dependencies": ["9"]
+    },
+    {
+      "id": "20",
+      "name": "Runnable20",
+      "criticality": 2,
+      "priority": 2,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 30,
+      "type": "event",
+      "dependencies": []
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "numCores": 2,
+  "runnables": [
+    {
+      "id": "1",
+      "name": "Runnable1",
+      "criticality": 1,
+      "priority": 1,
+      "affinity": 0,
+      "period": 100,
+      "execution_time": 15,
+      "type": "periodic",
+      "dependencies": []
+    },
+    {
+      "id": "2",
+      "name": "Runnable2",
+      "criticality": 2,
+      "priority": 2,
+      "affinity": 0,
+      "period": 180,
+      "execution_time": 20,
+      "type": "periodic",
+      "dependencies": []
+    },
+    {
+      "id": "3",
+      "name": "Runnable3",
+      "criticality": 1,
+      "priority": 1,
+      "affinity": 0,
+      "period": 0,
+      "execution_time": 25,
+      "type": "event",
+      "dependencies": ["1"]
+    }
+  ]
+}
