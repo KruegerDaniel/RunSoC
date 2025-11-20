@@ -1,19 +1,6 @@
 'use client';
 import {useState} from 'react';
-
-type ExecutionLogEntry = {
-    start: number
-    end: number
-    task: string
-    instance: number
-    affinity: number
-}
-
-type AlgorithmResult = {
-    totalExecutionTime: number
-    executionLog: ExecutionLogEntry[]
-    ganttChart: string | null
-}
+import {AlgorithmResult, ExecutionLogEntry} from '@/app/result/[id]/page';
 
 type MultiAlgorithmResult = Record<string, AlgorithmResult>
 
@@ -27,9 +14,14 @@ type ResultTabsProps = {
     results: MultiAlgorithmResult
 }
 
+function formatPercent(v: number) {
+    return `${(v * 100).toFixed(2)}%`;
+}
+
 export default function ResultTabs({availableAlgorithms, results}: ResultTabsProps) {
     const [selected, setSelected] = useState<string>(availableAlgorithms[0]);
     const selectedResult = results[selected];
+    const {kpis} = selectedResult;
 
     return (
         <>
@@ -51,6 +43,7 @@ export default function ResultTabs({availableAlgorithms, results}: ResultTabsPro
                         ))}
                     </nav>
                 </div>
+
                 {/* Gantt chart image */}
                 {selectedResult.ganttChart ? (
                     <div className="flex justify-center items-center min-h-[300px] bg-gray-50 border rounded">
@@ -69,7 +62,70 @@ export default function ResultTabs({availableAlgorithms, results}: ResultTabsPro
                         <span className="text-gray-400">No Gantt chart available</span>
                     </div>
                 )}
+
+                <div className="mt-6 space-y-4">
+                    {/* High-level KPIs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="border rounded-lg p-4">
+                            <div className="text-sm text-gray-500">Execution time</div>
+                            <div className="text-xl font-semibold">
+                                {kpis.totalExecutionTime}
+                            </div>
+                        </div>
+
+                        <div className="border rounded-lg p-4">
+                            <div className="text-sm text-gray-500">Core utilization</div>
+                            <div className="text-xl font-semibold">
+                                {formatPercent(kpis.overallUtilization)}
+                            </div>
+                        </div>
+
+                        <div className="border rounded-lg p-4">
+                            <div className="text-sm text-gray-500">
+                                Avg idle time per task
+                            </div>
+                            <div className="text-xl font-semibold">
+                                {kpis.avgIdleTimePerTask.toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Per-core breakdown */}
+                    <div className="border rounded-lg p-4">
+                        <div className="text-sm font-medium mb-2">
+                            Executed task count & utilization per core
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="text-left border-b">
+                                        <th className="py-1 pr-4">Core</th>
+                                        <th className="py-1 pr-4">Task count</th>
+                                        <th className="py-1 pr-4">Busy time (ms)</th>
+                                        <th className="py-1 pr-4">Idle time (ms)</th>
+                                        <th className="py-1 pr-4">Utilization</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {kpis.cores.map((core) => (
+                                        <tr key={core.coreId} className="border-b last:border-0">
+                                            <td className="py-1 pr-4">{core.coreId}</td>
+                                            <td className="py-1 pr-4">{core.taskCount}</td>
+                                            <td className="py-1 pr-4">{core.busyTime}</td>
+                                            <td className="py-1 pr-4">{core.idleTime}</td>
+                                            <td className="py-1 pr-4">
+                                                {formatPercent(core.utilization)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            {/* Existing Execution Log */}
             <div>
                 <h2 className="text-xl font-semibold mb-2">Execution Log</h2>
                 <div className="overflow-x-auto">
@@ -100,7 +156,7 @@ export default function ResultTabs({availableAlgorithms, results}: ResultTabsPro
                                 ) : (
                                     <tr>
                                         <td className="border px-2 py-1" colSpan={5}>
-                                            No execution log available
+                                    No execution log available
                                         </td>
                                     </tr>
                                 )}

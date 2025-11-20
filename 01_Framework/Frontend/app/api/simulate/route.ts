@@ -1,7 +1,13 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {Runnable} from '@/types/runnable';
 
-const resultStore: Record<string, unknown> = {};
+const globalAny = globalThis as any;
+if (!globalAny.__resultStore) {
+    globalAny.__resultStore = {};
+}
+const resultStore: Record<string, unknown> = globalAny.__resultStore;
+
+export const runtime = 'nodejs'; // NOT edge
 
 const BACKEND_URL =
     process.env.BACKEND_URL || 'http://backend:5001/api/schedule';
