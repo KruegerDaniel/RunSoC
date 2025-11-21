@@ -32,16 +32,20 @@ export type AlgorithmResult = {
     kpis: KpiSummary;
 };
 
-
 type MultiAlgorithmResult = Record<string, AlgorithmResult>;
 
 async function getResult(id: string) {
-    const res = await fetch(`http://127.0.0.1:3000/api/simulate?id=${id}`, {
+    const baseUrl =
+        process.env.NEXT_PUBLIC_APP_ORIGIN || 'http://localhost:3001';
+
+    const res = await fetch(`${baseUrl}/api/simulate?id=${id}`, {
         cache: 'no-store',
     });
+
     if (!res.ok) return null;
     return res.json();
 }
+
 
 function computeKpis(
     executionLog: ExecutionLogEntry[],
@@ -79,7 +83,6 @@ function computeKpis(
         let idleTime = 0;
 
         if (coreEntries.length === 0) {
-            // core exists but never scheduled
             idleTime = totalExecutionTime;
         } else {
             let lastEnd = 0;
@@ -129,7 +132,6 @@ function computeKpis(
     };
 }
 
-
 export default async function ResultPage({
     params,
 }: {
@@ -141,53 +143,51 @@ export default async function ResultPage({
 
     const results: MultiAlgorithmResult = {};
 
-    // Helper to normalize any executionLog entry shape into ExecutionLogEntry
     const mapLog = (entries: any[] = []): ExecutionLogEntry[] =>
         entries.map((e: any) => ({
             start: e.start ?? e.start_time ?? 0,
             end: e.end ?? e.finish_time ?? 0,
             task: e.task,
-            // FCFS/criticality use "instance"; main uses "eligibleTime" but has no instance.
-            instance:
-                e.instance ??
-                e.eligibleTime ??
-                0,
-            // FCFS/criticality use "affinity"; main uses "core".
-            affinity:
-                e.affinity ??
-                e.core ??
-                0,
+            instance: e.instance ?? e.eligibleTime ?? 0,
+            affinity: e.affinity ?? e.core ?? 0,
         }));
 
-    // Case 1: "all" algorithms → res.results present (fcfs, criticality, main{...})
-    if (res.results) {
-        const rawResults = res.results as Record<string, any>;
+    const buildRawResults = (obj: any): Record<string, any> | null => {
+        if (obj.results && typeof obj.results === 'object') {
+            return obj.results as Record<string, any>;
+        }
 
+        // generic: take all non-meta keys as algorithm groups
+        const raw: Record<string, any> = {};
+        for (const [k, v] of Object.entries(obj)) {
+            if (['resultId', 'success', 'error', 'status'].includes(k)) continue;
+            if (k === 'executionLog' || k === 'totalExecutionTime') continue;
+            raw[k] = v;
+        }
+        return Object.keys(raw).length ? raw : null;
+    };
+
+    const rawResults = buildRawResults(res);
+
+    if (rawResults) {
         for (const [algKey, value] of Object.entries(rawResults)) {
-            // Special handling for main scheduler:
-            // when allocationPolicy = "all"/"both", backend returns:
-            // "main": { "static": {...}, "dynamic": {...} }
-            if (
-                algKey === 'main' &&
-                value &&
-                typeof value === 'object' &&
-                !('executionLog' in (value as any))
-            ) {
-                const mainVariants = value as Record<string, any>;
-                for (const [policy, mainRes] of Object.entries(mainVariants)) {
-                    const mappedLog = mapLog(mainRes.executionLog);
-                    const totalExecutionTime = mainRes.totalExecutionTime ?? 0;
-                    const key = `main-${policy}`;
+            const v = value as any;
+
+            if (v && typeof v === 'object' && !('executionLog' in v)) {
+                const variants = v as Record<string, any>;
+                for (const [variantKey, variantRes] of Object.entries(variants)) {
+                    const mappedLog = mapLog(variantRes.executionLog);
+                    const totalExecutionTime = variantRes.totalExecutionTime ?? 0;
+                    const key = `${algKey}-${variantKey}`; // e.g. "fcfs-static"
                     results[key] = {
                         totalExecutionTime,
                         executionLog: mappedLog,
-                        ganttChart: mainRes.ganttChart ?? null,
+                        ganttChart: variantRes.ganttChart ?? null,
                         kpis: computeKpis(mappedLog, totalExecutionTime),
                     };
                 }
             } else {
-                // Normal single algorithm result (fcfs, criticality, or main with single policy)
-                const v = value as any;
+                // Single-level result under this algorithm key
                 const mappedLog = mapLog(v.executionLog);
                 const totalExecutionTime = v.totalExecutionTime ?? 0;
                 results[algKey] = {
@@ -198,49 +198,26 @@ export default async function ResultPage({
                 };
             }
         }
-    }
-    // Case 2: algorithm == "main" with multiple policies, spread at top-level:
-    // { success: true, static: {...}, dynamic: {...} }
-    else if (res.static || res.dynamic) {
-        (['static', 'dynamic'] as const).forEach((policy) => {
-            if (res[policy]) {
-                const v = res[policy] as any;
-                const key = `main-${policy}`;
-                const mappedLog = mapLog(v.executionLog);
-                const totalExecutionTime = v.totalExecutionTime ?? 0;
-                results[key] = {
-                    totalExecutionTime,
-                    executionLog: mappedLog,
-                    ganttChart: v.ganttChart ?? null,
-                    kpis: computeKpis(mappedLog, totalExecutionTime),
-                };
-            }
-        });
-        // Fallback: if neither static/dynamic recognized, treat as single
-        if (Object.keys(results).length === 0 && res.totalExecutionTime) {
-            const mappedLog = mapLog(res.executionLog);
-            const totalExecutionTime = res.totalExecutionTime ?? 0;
-            results['single'] = {
-                totalExecutionTime,
-                executionLog: mappedLog,
-                ganttChart: res.ganttChart ?? null,
-                kpis: computeKpis(mappedLog, totalExecutionTime),
-            };
-        }
-    }
-    // Case 3: single algorithm response (fcfs / criticality / main with one policy)
-    else {
-        const mappedLog = mapLog(res.executionLog);
-        const totalExecutionTime = res.totalExecutionTime ?? 0;
+    } else if ((res as any).totalExecutionTime !== undefined) {
+        // Case 2: single algorithm result at top-level
+        const mappedLog = mapLog((res as any).executionLog);
+        const totalExecutionTime = (res as any).totalExecutionTime ?? 0;
         results['single'] = {
             totalExecutionTime,
             executionLog: mappedLog,
-            ganttChart: res.ganttChart ?? null,
+            ganttChart: (res as any).ganttChart ?? null,
             kpis: computeKpis(mappedLog, totalExecutionTime),
         };
+    } else {
+        console.error('Unexpected result payload for id', id, res);
+        return notFound();
     }
 
     const availableAlgorithms = Object.keys(results);
+    if (!availableAlgorithms.length) {
+        console.error('No parsed results for id', id, res);
+        return notFound();
+    }
 
     return (
         <div className="max-w-4xl mx-auto py-10 px-4">

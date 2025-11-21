@@ -13,7 +13,11 @@ import {
 } from '@radix-ui/themes';
 import {useFormContext} from 'react-hook-form';
 import type {SimulationForm} from '@/types/runnable';
-import type {Algorithm, AllocationPolicy} from '@/types/algorithms';
+import type {
+    Algorithm,
+    AllocationPolicy,
+    SchedulingPolicy,
+} from '@/types/algorithms';
 
 import ImportJsonButton from './ImportJsonButton';
 import SimulationDialog from './SimulationDialog';
@@ -30,9 +34,18 @@ const RunnableConfigPanel = () => {
     const runnables = watch('runnables') ?? [];
 
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [selectedAlgorithm, setSelectedAlgorithm] = useState<Algorithm>('all');
+
+    // Algorithm is now just "main" or "all"
+    const [selectedAlgorithm, setSelectedAlgorithm] =
+        useState<Algorithm>('main');
+
+    // New: scheduling policy selector (fcfs / pas / both)
+    const [selectedSchedulingPolicy, setSelectedSchedulingPolicy] =
+        useState<SchedulingPolicy>('fcfs');
+
+    // Allocation policy: static / dynamic / both
     const [selectedAllocationPolicy, setSelectedAllocationPolicy] =
-        useState<AllocationPolicy>('all');
+        useState<AllocationPolicy>('static');
 
     const {loading, resultId, runSimulation} = useSimulationRunner(getValues);
     const handleImport = useImportJson(setValue);
@@ -74,7 +87,11 @@ const RunnableConfigPanel = () => {
     };
 
     const onSubmit = async () => {
-        await runSimulation(selectedAlgorithm, selectedAllocationPolicy);
+        await runSimulation(
+            selectedAlgorithm,
+            selectedSchedulingPolicy,
+            selectedAllocationPolicy,
+        );
     };
 
     return (
@@ -91,7 +108,9 @@ const RunnableConfigPanel = () => {
                             {/* Download dropdown */}
                             <DropdownMenu.Root>
                                 <DropdownMenu.Trigger>
-                                    <Button type="button" variant="outline">Download</Button>
+                                    <Button type="button" variant="outline">
+                                        Download
+                                    </Button>
                                 </DropdownMenu.Trigger>
 
                                 <DropdownMenu.Content>
@@ -108,7 +127,6 @@ const RunnableConfigPanel = () => {
                                     </DropdownMenu.Item>
                                 </DropdownMenu.Content>
                             </DropdownMenu.Root>
-
                         </Flex>
                     </Flex>
 
@@ -160,7 +178,9 @@ const RunnableConfigPanel = () => {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => window.open(`/result/${resultId}`, '_blank')}
+                                onClick={() =>
+                                    window.open(`/result/${resultId}`, '_blank')
+                                }
                             >
                                 View Result
                             </Button>
@@ -169,14 +189,16 @@ const RunnableConfigPanel = () => {
                 </form>
             </ScrollArea>
 
-            {/* Algorithm selection dialog */}
+            {/* Algorithm + policy selection dialog */}
             <SimulationDialog
                 open={dialogOpen}
                 loading={loading}
-                selected={selectedAlgorithm}
+                selectedAlgorithm={selectedAlgorithm}
+                selectedSchedulingPolicy={selectedSchedulingPolicy}
                 selectedAllocationPolicy={selectedAllocationPolicy}
                 onOpenChange={setDialogOpen}
                 onChangeAlgorithm={setSelectedAlgorithm}
+                onChangeSchedulingPolicy={setSelectedSchedulingPolicy}
                 onChangeAllocationPolicy={setSelectedAllocationPolicy}
                 onConfirm={() => {
                     setDialogOpen(false);

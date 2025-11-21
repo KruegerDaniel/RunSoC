@@ -4,104 +4,68 @@ matplotlib.use('Agg')
 
 from typing import Dict, Any, Tuple
 
-from scheduling.fcfs.fcfs import run_fcfs_affinity
-from scheduling.criticality.criticality import run_criticality
 from scheduling.main_scheduler import run_main_scheduler
 from utils.converters import normalize_runnables, to_main_tasks
-from utils.gantt import create_gantt_chart, create_gantt_chart_from_main
-
+from utils.gantt import create_gantt_chart_from_main
 
 
 def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
-    """
-    Main entrypoint for the HTTP layer.
-    Input: raw JSON dict from the request.
-    Output: (payload, http_status)
-    """
     runnables = data.get('runnables', {})
     num_cores = int(data.get('numCores', 1))
     simulation_time = int(data.get('simulationTime', 400))
-    algorithm = data.get('algorithm', 'all')
-    scheduling_policy = data.get('schedulingPolicy', '../scheduling/fcfs')
+
+    algorithm = str(data.get('algorithm', 'main')).lower()
+    if algorithm not in ('main', 'all'):
+        return {'error': 'Unknown algorithm, use "main" or "all"'}, 400
 
     runnables = normalize_runnables(runnables)
-
     if not runnables:
         return {'error': 'No runnables provided'}, 400
 
-    results: Dict[str, Any] = {}
+    tasks_for_main = to_main_tasks(runnables)
 
-    # 1) FCFS (old)
-    if algorithm in ('all', 'fcfs'):
-        exec_log_fcfs, total_time_fcfs = run_fcfs_affinity(
-            runnables, num_cores, simulation_time
-        )
-        gantt_fcfs = create_gantt_chart(exec_log_fcfs, title="FCFS Gantt Chart")
-        results['fcfs'] = {
-            'totalExecutionTime': total_time_fcfs,
-            'executionLog': [
-                {
-                    'start': start,
-                    'end': end,
-                    'task': task,
-                    'instance': instance,
-                    'affinity': affinity,
-                }
-                for start, end, task, instance, affinity in exec_log_fcfs.get_log()
-            ],
-            'ganttChart': gantt_fcfs,
-        }
+    sched_mode = str(data.get('schedulingPolicy', 'fcfs')).lower()
+    alloc_mode = str(data.get('allocationPolicy', 'static')).lower()
 
-    # 2) Criticality
-    if algorithm in ('all', 'criticality'):
-        exec_log_crit, total_time_crit = run_criticality(
-            runnables, num_cores, simulation_time
-        )
-        gantt_crit = create_gantt_chart(
-            exec_log_crit, title="Criticality Gantt Chart"
-        )
-        results['criticality'] = {
-            'totalExecutionTime': total_time_crit,
-            'executionLog': [
-                {
-                    'start': start,
-                    'end': end,
-                    'task': task,
-                    'instance': instance,
-                    'affinity': affinity,
-                }
-                for start, end, task, instance, affinity in exec_log_crit.get_log()
-            ],
-            'ganttChart': gantt_crit,
-        }
-
-    # 3) Main scheduler (your static/dynamic)
-    if algorithm in ('all', 'main'):
-        tasks_for_main = to_main_tasks(runnables)
-
-        requested = data.get('allocationPolicy', 'static').lower()
-
-        if requested in ('both', 'all') and algorithm in ('all', 'main'):
-            policies = ['static', 'dynamic']
+    if algorithm == 'all':
+        sched_policies = ['fcfs', 'pas']
+        alloc_policies = ['static', 'dynamic']
+    else:
+        if sched_mode in ('both', 'all'):
+            sched_policies = ['fcfs', 'pas']
         else:
-            policies = [requested]
+            sched_policies = [sched_mode]
 
-        main_results = {}
-        for policy in policies:
+        if alloc_mode in ('both', 'all'):
+            alloc_policies = ['static', 'dynamic']
+        else:
+            alloc_policies = [alloc_mode]
+
+    results: Dict[str, Dict[str, Any]] = {}
+
+    for sched_policy in sched_policies:
+        sched_key = sched_policy.lower()
+        results[sched_key] = {}
+        for alloc_policy in alloc_policies:
+            alloc_key = alloc_policy.lower()
+
             schedule_entries, finish_time, extra_wait = run_main_scheduler(
                 tasks_for_main,
                 num_cores,
-                scheduling_policy=scheduling_policy,
-                allocation_policy=policy,
+                scheduling_policy=sched_key,
+                allocation_policy=alloc_key,
             )
+
             gantt_main = create_gantt_chart_from_main(
                 schedule_entries,
-                title=f"Main Scheduler ({policy})"
+                title=f"Main Scheduler ({sched_key.upper()}, {alloc_key})"
             )
-            main_results[policy] = {
+
+            results[sched_key][alloc_key] = {
                 'totalExecutionTime': finish_time,
                 'extraWait': extra_wait,
-                'allocationPolicy': policy,
+                'schedulingPolicy': sched_key,
+                'allocationPolicy': alloc_key,
                 'executionLog': [
                     {
                         'start': e.start_time,
@@ -115,16 +79,28 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
                 'ganttChart': gantt_main,
             }
 
-        results['main'] = main_results
+    def remove_gantt(obj):
+        if isinstance(obj, dict):
+            return {
+                k: remove_gantt(v)
+                for k, v in obj.items()
+                if k != 'ganttChart'
+            }
+        elif isinstance(obj, list):
+            return [remove_gantt(i) for i in obj]
+        return obj
 
-    # single algorithm responses
-    if algorithm == 'fcfs':
-        return {'success': True, **results['fcfs']}, 200
-    if algorithm == 'criticality':
-        return {'success': True, **results['criticality']}, 200
-    if algorithm == 'main':
-        return {'success': True, **results['main']}, 200
-    if algorithm == 'all':
-        return {'success': True, 'results': results}, 200
+    print(remove_gantt(results))
+    if len(sched_policies) == 1 and len(alloc_policies) == 1 and algorithm == 'main':
+        only_sched = sched_policies[0].lower()
+        only_alloc = alloc_policies[0].lower()
+        single_result = results[only_sched][only_alloc]
+        return {
+            'success': True,
+            **single_result,
+        }, 200
 
-    return {'error': 'Unknown algorithm'}, 400
+    return {
+        'success': True,
+        'results': results,
+    }, 200

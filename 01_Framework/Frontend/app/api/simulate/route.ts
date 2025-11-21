@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
                 ),
                 numCores: data.numCores,
                 simulationTime: 400,
-                algorithm: data.algorithm ?? 'all',
+                algorithm: data.algorithm ?? 'main',
+                schedulingPolicy: data.schedulingPolicy ?? 'fcfs',
                 allocationPolicy: data.allocationPolicy ?? 'static',
             }),
         });
