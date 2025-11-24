@@ -3,7 +3,7 @@
   "runnables": [
     {
       "id": "1",
-      "name": "Runnable1",
+      "name": "Task1",
       "criticality": 1,
       "priority": 1,
       "affinity": 0,
@@ -14,7 +14,7 @@
     },
     {
       "id": "2",
-      "name": "Runnable2",
+      "name": "Task2",
       "criticality": 2,
       "priority": 2,
       "affinity": 0,
@@ -25,7 +25,7 @@
     },
     {
       "id": "3",
-      "name": "Runnable3",
+      "name": "Task3",
       "criticality": 1,
       "priority": 1,
       "affinity": 0,
@@ -36,190 +36,190 @@
     },
     {
       "id": "4",
-      "name": "Runnable4",
+      "name": "Task4",
       "criticality": 4,
       "priority": 4,
       "affinity": 0,
       "period": 0,
       "execution_time": 30,
       "type": "event",
-      "dependencies": ["2"]
+      "dependencies": ["1"]
     },
     {
       "id": "5",
-      "name": "Runnable5",
+      "name": "Task5",
       "criticality": 3,
       "priority": 3,
       "affinity": 0,
       "period": 0,
       "execution_time": 20,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["2"]
     },
     {
       "id": "6",
-      "name": "Runnable6",
+      "name": "Task6",
       "criticality": 1,
       "priority": 1,
       "affinity": 0,
       "period": 0,
       "execution_time": 35,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["2"]
     },
     {
       "id": "7",
-      "name": "Runnable7",
+      "name": "Task7",
       "criticality": 2,
       "priority": 2,
       "affinity": 0,
       "period": 0,
       "execution_time": 40,
       "type": "event",
-      "dependencies": ["6"]
+      "dependencies": ["3", "4"]
     },
     {
       "id": "8",
-      "name": "Runnable8",
+      "name": "Task8",
       "criticality": 1,
       "priority": 1,
       "affinity": 0,
       "period": 0,
       "execution_time": 25,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["5", "6"]
     },
     {
       "id": "9",
-      "name": "Runnable9",
+      "name": "Task9",
       "criticality": 0,
       "priority": 0,
       "affinity": 0,
       "period": 0,
       "execution_time": 30,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["3"]
     },
     {
       "id": "10",
-      "name": "Runnable10",
+      "name": "Task10",
       "criticality": 4,
       "priority": 4,
       "affinity": 0,
       "period": 0,
       "execution_time": 20,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["4"]
     },
     {
       "id": "11",
-      "name": "Runnable11",
+      "name": "Task11",
       "criticality": 2,
       "priority": 2,
       "affinity": 0,
       "period": 0,
       "execution_time": 45,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["7"]
     },
     {
       "id": "12",
-      "name": "Runnable12",
+      "name": "Task12",
       "criticality": 0,
       "priority": 0,
       "affinity": 0,
       "period": 0,
       "execution_time": 30,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["8"]
     },
     {
       "id": "13",
-      "name": "Runnable13",
+      "name": "Task13",
       "criticality": 3,
       "priority": 3,
       "affinity": 0,
       "period": 0,
       "execution_time": 35,
       "type": "event",
-      "dependencies": ["8"]
+      "dependencies": ["9", "10"]
     },
     {
       "id": "14",
-      "name": "Runnable14",
+      "name": "Task14",
       "criticality": 1,
       "priority": 1,
       "affinity": 0,
       "period": 0,
       "execution_time": 25,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["11"]
     },
     {
       "id": "15",
-      "name": "Runnable15",
+      "name": "Task15",
       "criticality": 3,
       "priority": 3,
       "affinity": 0,
       "period": 0,
       "execution_time": 40,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["12"]
     },
     {
       "id": "16",
-      "name": "Runnable16",
+      "name": "Task16",
       "criticality": 3,
       "priority": 3,
       "affinity": 0,
       "period": 0,
       "execution_time": 20,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["13"]
     },
     {
       "id": "17",
-      "name": "Runnable17",
+      "name": "Task17",
       "criticality": 4,
       "priority": 4,
       "affinity": 0,
       "period": 0,
       "execution_time": 50,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["14", "15"]
     },
     {
       "id": "18",
-      "name": "Runnable18",
+      "name": "Task18",
       "criticality": 1,
       "priority": 1,
       "affinity": 0,
       "period": 0,
       "execution_time": 25,
       "type": "event",
-      "dependencies": ["3"]
+      "dependencies": ["16"]
     },
     {
       "id": "19",
-      "name": "Runnable19",
+      "name": "Task19",
       "criticality": 4,
       "priority": 4,
       "affinity": 0,
       "period": 0,
       "execution_time": 35,
       "type": "event",
-      "dependencies": ["9"]
+      "dependencies": ["17", "18"]
     },
     {
       "id": "20",
-      "name": "Runnable20",
+      "name": "Task20",
       "criticality": 2,
       "priority": 2,
       "affinity": 0,
       "period": 0,
       "execution_time": 30,
       "type": "event",
-      "dependencies": []
+      "dependencies": ["19"]
     }
   ]
 }

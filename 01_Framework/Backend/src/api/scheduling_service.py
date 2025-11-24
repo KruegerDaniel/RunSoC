@@ -79,18 +79,6 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
                 'ganttChart': gantt_main,
             }
 
-    def remove_gantt(obj):
-        if isinstance(obj, dict):
-            return {
-                k: remove_gantt(v)
-                for k, v in obj.items()
-                if k != 'ganttChart'
-            }
-        elif isinstance(obj, list):
-            return [remove_gantt(i) for i in obj]
-        return obj
-
-    print(remove_gantt(results))
     if len(sched_policies) == 1 and len(alloc_policies) == 1 and algorithm == 'main':
         only_sched = sched_policies[0].lower()
         only_alloc = alloc_policies[0].lower()

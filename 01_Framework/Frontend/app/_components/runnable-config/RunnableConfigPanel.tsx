@@ -121,8 +121,13 @@ const RunnableConfigPanel = () => {
                                     </DropdownMenu.Item>
 
                                     <DropdownMenu.Item asChild>
-                                        <a href="/example_json.json" download>
-                                            Example JSON
+                                        <a href="/example_balanced.json" download>
+                                            Example JSON- balanced
+                                        </a>
+                                    </DropdownMenu.Item>
+                                    <DropdownMenu.Item asChild>
+                                        <a href="/example_long.json" download>
+                                            Example JSON - long path
                                         </a>
                                     </DropdownMenu.Item>
                                 </DropdownMenu.Content>
