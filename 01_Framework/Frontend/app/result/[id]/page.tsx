@@ -154,7 +154,27 @@ export default async function ResultPage({
 
     const buildRawResults = (obj: any): Record<string, any> | null => {
         if (obj.results && typeof obj.results === 'object') {
-            return obj.results as Record<string, any>;
+            const r = obj.results as Record<string, any>;
+
+            const algoFieldKeys = [
+                'totalExecutionTime',
+                'executionLog',
+                'ganttChart',
+                'extraWait',
+                'schedulingPolicy',
+                'allocationPolicy',
+            ];
+
+            const keys = Object.keys(r);
+            const looksLikeSingleAlgorithm = keys.some((k) =>
+                algoFieldKeys.includes(k),
+            );
+
+            if (looksLikeSingleAlgorithm) {
+                return { single: r };
+            }
+
+            return r;
         }
 
         // generic: take all non-meta keys as algorithm groups
