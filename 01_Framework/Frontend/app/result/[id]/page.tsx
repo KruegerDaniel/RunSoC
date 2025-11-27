@@ -1,3 +1,4 @@
+// ResultPage.tsx
 import { notFound } from 'next/navigation';
 import ResultTabs from './ResultTabs';
 
@@ -35,17 +36,12 @@ export type AlgorithmResult = {
 type MultiAlgorithmResult = Record<string, AlgorithmResult>;
 
 async function getResult(id: string) {
-    const baseUrl =
-        process.env.NEXT_PUBLIC_APP_ORIGIN || 'http://localhost:3001';
-
+    const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_ORIGIN!;
     const res = await fetch(`${baseUrl}/api/simulate?id=${id}`, {
         cache: 'no-store',
     });
-
-    if (!res.ok) return null;
-    return res.json();
+    return res.ok ? res.json() : null;
 }
-
 
 function computeKpis(
     executionLog: ExecutionLogEntry[],
@@ -139,7 +135,7 @@ export default async function ResultPage({
 }) {
     const { id } = await params;
     const res = await getResult(id);
-    if (!res) return notFound();
+    if (!res || !res.success || !res.results) return notFound();
 
     const results: MultiAlgorithmResult = {};
 
@@ -152,85 +148,25 @@ export default async function ResultPage({
             affinity: e.affinity ?? e.core ?? 0,
         }));
 
-    const buildRawResults = (obj: any): Record<string, any> | null => {
-        if (obj.results && typeof obj.results === 'object') {
-            const r = obj.results as Record<string, any>;
+    const backendResults = res.results as Record<string, Record<string, any>>;
 
-            const algoFieldKeys = [
-                'totalExecutionTime',
-                'executionLog',
-                'ganttChart',
-                'extraWait',
-                'schedulingPolicy',
-                'allocationPolicy',
-            ];
+    for (const [schedKey, allocMap] of Object.entries(backendResults)) {
+        if (!allocMap || typeof allocMap !== 'object') continue;
 
-            const keys = Object.keys(r);
-            const looksLikeSingleAlgorithm = keys.some((k) =>
-                algoFieldKeys.includes(k),
-            );
+        for (const [allocKey, variantRes] of Object.entries(allocMap)) {
+            if (!variantRes || typeof variantRes !== 'object') continue;
 
-            if (looksLikeSingleAlgorithm) {
-                return { single: r };
-            }
+            const mappedLog = mapLog(variantRes.executionLog);
+            const totalExecutionTime = variantRes.totalExecutionTime ?? 0;
+            const key = `${schedKey}-${allocKey}`; // e.g. "fcfs-static"
 
-            return r;
+            results[key] = {
+                totalExecutionTime,
+                executionLog: mappedLog,
+                ganttChart: variantRes.ganttChart ?? null,
+                kpis: computeKpis(mappedLog, totalExecutionTime),
+            };
         }
-
-        // generic: take all non-meta keys as algorithm groups
-        const raw: Record<string, any> = {};
-        for (const [k, v] of Object.entries(obj)) {
-            if (['resultId', 'success', 'error', 'status'].includes(k)) continue;
-            if (k === 'executionLog' || k === 'totalExecutionTime') continue;
-            raw[k] = v;
-        }
-        return Object.keys(raw).length ? raw : null;
-    };
-
-    const rawResults = buildRawResults(res);
-
-    if (rawResults) {
-        for (const [algKey, value] of Object.entries(rawResults)) {
-            const v = value as any;
-
-            if (v && typeof v === 'object' && !('executionLog' in v)) {
-                const variants = v as Record<string, any>;
-                for (const [variantKey, variantRes] of Object.entries(variants)) {
-                    const mappedLog = mapLog(variantRes.executionLog);
-                    const totalExecutionTime = variantRes.totalExecutionTime ?? 0;
-                    const key = `${algKey}-${variantKey}`; // e.g. "fcfs-static"
-                    results[key] = {
-                        totalExecutionTime,
-                        executionLog: mappedLog,
-                        ganttChart: variantRes.ganttChart ?? null,
-                        kpis: computeKpis(mappedLog, totalExecutionTime),
-                    };
-                }
-            } else {
-                // Single-level result under this algorithm key
-                const mappedLog = mapLog(v.executionLog);
-                const totalExecutionTime = v.totalExecutionTime ?? 0;
-                results[algKey] = {
-                    totalExecutionTime,
-                    executionLog: mappedLog,
-                    ganttChart: v.ganttChart ?? null,
-                    kpis: computeKpis(mappedLog, totalExecutionTime),
-                };
-            }
-        }
-    } else if ((res as any).totalExecutionTime !== undefined) {
-        // Case 2: single algorithm result at top-level
-        const mappedLog = mapLog((res as any).executionLog);
-        const totalExecutionTime = (res as any).totalExecutionTime ?? 0;
-        results['single'] = {
-            totalExecutionTime,
-            executionLog: mappedLog,
-            ganttChart: (res as any).ganttChart ?? null,
-            kpis: computeKpis(mappedLog, totalExecutionTime),
-        };
-    } else {
-        console.error('Unexpected result payload for id', id, res);
-        return notFound();
     }
 
     const availableAlgorithms = Object.keys(results);

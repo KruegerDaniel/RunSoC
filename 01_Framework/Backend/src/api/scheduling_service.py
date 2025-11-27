@@ -79,15 +79,6 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
                 'ganttChart': gantt_main,
             }
 
-    if len(sched_policies) == 1 and len(alloc_policies) == 1 and algorithm == 'main':
-        only_sched = sched_policies[0].lower()
-        only_alloc = alloc_policies[0].lower()
-        single_result = results[only_sched][only_alloc]
-        return {
-            'success': True,
-            **single_result,
-        }, 200
-
     return {
         'success': True,
         'results': results,

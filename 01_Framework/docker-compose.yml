@@ -8,20 +8,18 @@ services:
     container_name: backend
     ports:
       - "5001:5001"
-    env_file:
-      - Frontend/.env
 
   frontend:
     build:
       context: ./Frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_FRONTEND_ORIGIN: "http://localhost:3000"
     container_name: frontend
     ports:
       - "3000:3000"
-    env_file:
-      - Frontend/.env
     environment:
-      - BACKEND_URL=http://backend:5001/api/schedule
-      - NEXT_PUBLIC_API_BASE=http://localhost:3000
+      BACKEND_URL: "http://backend:5001/api/schedule"
+      NEXT_PUBLIC_FRONTEND_ORIGIN: "http://localhost:3000"
     depends_on:
       - backend
