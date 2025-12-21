@@ -95,7 +95,7 @@ const RunnableConfigPanel = () => {
     };
 
     return (
-        <div className="w-full md:min-w-[480px] md:max-w-[640px]">
+        <div className="w-full md:w-[520px] md:max-w-none">
             <ScrollArea scrollbars="vertical">
                 <form ref={formRef} onSubmit={handleSubmit(onSubmit)}>
                     {/* Header */}

@@ -130,11 +130,14 @@ export default function Home() {
     }, [runnables]);
 
     return (
-        <div className="flex flex-col md:flex-row gap-8 max-w-6xl mx-auto py-10 px-4 min-h-screen h-screen overflow-hidden">
+        <div className="flex h-screen w-full flex-col gap-8 overflow-hidden px-4 sm:px-6 lg:px-8 py-8 md:flex-row">
             <RunnablePlayground nodes={nodes} edges={edges} />
-            <FormProvider {...methods}>
-                <RunnableConfigPanel />
-            </FormProvider>
+            <div className="flex-[0_0_520px] min-w-0 overflow-auto">
+                <FormProvider {...methods}>
+                    <RunnableConfigPanel />
+                </FormProvider>
+            </div>
         </div>
     );
+
 }
