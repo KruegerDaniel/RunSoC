@@ -9,6 +9,7 @@ services:
       - ALL
     tmpfs:
       - /tmp
+      - /app/Images:rw,nosuid,nodev,noexec,mode=1777
     build:
       context: ./Backend
       dockerfile: Dockerfile
