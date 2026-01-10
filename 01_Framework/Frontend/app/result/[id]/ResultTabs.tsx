@@ -22,6 +22,8 @@ export default function ResultTabs({availableAlgorithms, results}: ResultTabsPro
     const [selected, setSelected] = useState<string>(availableAlgorithms[0]);
     const selectedResult = results[selected];
     const {kpis} = selectedResult;
+    const nonExecutedTasks = selectedResult.nonExecutedTasks ?? [];
+    const allTasks = selectedResult.allTasks ?? [];
 
     return (
         <>
@@ -62,6 +64,33 @@ export default function ResultTabs({availableAlgorithms, results}: ResultTabsPro
                         <span className="text-gray-400">No Gantt chart available</span>
                     </div>
                 )}
+
+                <div className="mt-4">
+                    {nonExecutedTasks.length > 0 ? (
+                        <div className="border rounded-lg p-4 bg-red-50">
+                            <div className="text-sm font-medium text-red-700">
+                                Non-executed tasks ({nonExecutedTasks.length}) out of {allTasks.length} total tasks:
+                            </div>
+                            <p className="text-xs text-red-600 mt-1 mb-2">
+                                These tasks were defined but never scheduled within the simulation horizon.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {nonExecutedTasks.map((name) => (
+                                    <span
+                                        key={name}
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 border border-red-200"
+                                    >
+                                        {name}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="border rounded-lg p-3 bg-green-50 text-xs text-green-700">
+                            All tasks were executed at least once.
+                        </div>
+                    )}
+                </div>
 
                 <div className="mt-6 space-y-4">
                     {/* High-level KPIs */}

@@ -23,6 +23,7 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
         return {'error': 'No runnables provided'}, 400
 
     tasks_for_main = to_main_tasks(runnables)
+    all_task_names = set(tasks_for_main.keys())
 
     sched_mode = str(data.get('schedulingPolicy', 'fcfs')).lower()
     alloc_mode = str(data.get('allocationPolicy', 'static')).lower()
@@ -56,6 +57,9 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
                 allocation_policy=alloc_key,
             )
 
+            executed_task_names = {e.task for e in schedule_entries}
+            non_executed_tasks = sorted(all_task_names - executed_task_names)
+
             gantt_main = create_gantt_chart_from_main(
                 schedule_entries,
                 title=f"Main Scheduler ({sched_key.upper()}, {alloc_key})"
@@ -77,6 +81,8 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
                     for e in schedule_entries
                 ],
                 'ganttChart': gantt_main,
+                'nonExecutedTasks': non_executed_tasks,
+                'allTasks': sorted(all_task_names),
             }
 
     return {

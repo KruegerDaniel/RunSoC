@@ -31,7 +31,10 @@ export type AlgorithmResult = {
     executionLog: ExecutionLogEntry[];
     ganttChart: string | null;
     kpis: KpiSummary;
+    nonExecutedTasks?: string[];
+    allTasks?: string[];
 };
+
 
 type MultiAlgorithmResult = Record<string, AlgorithmResult>;
 
@@ -159,12 +162,16 @@ export default async function ResultPage({
             const mappedLog = mapLog(variantRes.executionLog);
             const totalExecutionTime = variantRes.totalExecutionTime ?? 0;
             const key = `${schedKey}-${allocKey}`; // e.g. "fcfs-static"
+            const nonExecutedTasks: string[] = variantRes.nonExecutedTasks ?? [];
+            const allTasks: string[] = variantRes.allTasks ?? [];
 
             results[key] = {
                 totalExecutionTime,
                 executionLog: mappedLog,
                 ganttChart: variantRes.ganttChart ?? null,
                 kpis: computeKpis(mappedLog, totalExecutionTime),
+                nonExecutedTasks,
+                allTasks,
             };
         }
     }
