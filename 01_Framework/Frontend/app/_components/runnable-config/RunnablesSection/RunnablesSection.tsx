@@ -1,6 +1,7 @@
+// RunnablesSection.tsx
 'use client';
 
-import {Button, Flex, Text} from '@radix-ui/themes';
+import {Button, Flex, Text, ScrollArea} from '@radix-ui/themes';
 import {useMemo} from 'react';
 import {useFormContext} from 'react-hook-form';
 import type {Runnable, SimulationForm} from '@/types/runnable';
@@ -35,7 +36,8 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
     );
 
     return (
-        <div>
+        <div className="flex flex-col gap-2">
+            {/* Header (non-scrollable) */}
             <Flex justify="between" align="center" mb="2">
                 <Text as="label" size="3" className="font-medium">
                     Runnables
@@ -48,12 +50,16 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
                         options={sortOptions}
                         onChangeKey={(k) => {
                             const key = k as SortKey;
-                            setValue('runnables', sortWith(runnables, key, sortDir), {shouldDirty: true});
+                            setValue('runnables', sortWith(runnables, key, sortDir), {
+                                shouldDirty: true,
+                            });
                             setSortKey(key);
                         }}
                         onToggleDir={() => {
                             const nextDir = sortDir === 'asc' ? 'desc' : 'asc';
-                            setValue('runnables', sortWith(runnables, sortKey, nextDir), {shouldDirty: true});
+                            setValue('runnables', sortWith(runnables, sortKey, nextDir), {
+                                shouldDirty: true,
+                            });
                             setSortDir(nextDir);
                         }}
                     />
@@ -64,18 +70,24 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
                 </Flex>
             </Flex>
 
-            <Flex direction="column" gap="4">
-                {runnables.map((runnable, idx) => (
-                    <RunnableCard
-                        key={runnable.id}
-                        runnable={runnable}
-                        index={idx}
-                        numCores={numCores}
-                        allRunnables={allRunnableNames}
-                        onRemove={onRemove}
-                    />
-                ))}
-            </Flex>
+            <ScrollArea
+                scrollbars="vertical"
+                className="border rounded-md"
+                style={{maxHeight: 600}}
+            >
+                <Flex direction="column" gap="4" p="2">
+                    {runnables.map((runnable, idx) => (
+                        <RunnableCard
+                            key={runnable.id}
+                            runnable={runnable}
+                            index={idx}
+                            numCores={numCores}
+                            allRunnables={allRunnableNames}
+                            onRemove={onRemove}
+                        />
+                    ))}
+                </Flex>
+            </ScrollArea>
         </div>
     );
 };

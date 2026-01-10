@@ -1,3 +1,4 @@
+// RunnableConfigPanel.tsx
 'use client';
 
 import {useRef, useState} from 'react';
@@ -6,7 +7,6 @@ import {
     Button,
     Flex,
     Heading,
-    ScrollArea,
     Text,
     TextField,
     DropdownMenu,
@@ -35,15 +35,10 @@ const RunnableConfigPanel = () => {
 
     const [dialogOpen, setDialogOpen] = useState(false);
 
-    // Algorithm is now just "main" or "all"
     const [selectedAlgorithm, setSelectedAlgorithm] =
         useState<Algorithm>('main');
-
-    // New: scheduling policy selector (fcfs / pas / both)
     const [selectedSchedulingPolicy, setSelectedSchedulingPolicy] =
         useState<SchedulingPolicy>('fcfs');
-
-    // Allocation policy: static / dynamic / both
     const [selectedAllocationPolicy, setSelectedAllocationPolicy] =
         useState<AllocationPolicy>('static');
 
@@ -96,103 +91,99 @@ const RunnableConfigPanel = () => {
 
     return (
         <div className="w-full md:w-[520px] md:max-w-none">
-            <ScrollArea scrollbars="vertical">
-                <form ref={formRef} onSubmit={handleSubmit(onSubmit)}>
-                    {/* Header */}
-                    <Flex justify="between" align="center" mb="6">
-                        <Heading className="text-2xl font-bold">Configuration</Heading>
+            <form ref={formRef} onSubmit={handleSubmit(onSubmit)}>
+                {/* Header */}
+                <Flex justify="between" align="center" mb="6">
+                    <Heading className="text-2xl font-bold">Configuration</Heading>
 
-                        <Flex gap="2" align="center">
-                            <ImportJsonButton onFile={handleImport} />
+                    <Flex gap="2" align="center">
+                        <ImportJsonButton onFile={handleImport} />
 
-                            {/* Download dropdown */}
-                            <DropdownMenu.Root>
-                                <DropdownMenu.Trigger>
-                                    <Button type="button" variant="outline">
-                                        Download
-                                    </Button>
-                                </DropdownMenu.Trigger>
+                        {/* Download dropdown */}
+                        <DropdownMenu.Root>
+                            <DropdownMenu.Trigger>
+                                <Button type="button" variant="outline">
+                                    Download
+                                </Button>
+                            </DropdownMenu.Trigger>
 
-                                <DropdownMenu.Content>
-                                    <DropdownMenu.Item asChild>
-                                        <a href="/template_json.json" download>
-                                            Template JSON
-                                        </a>
-                                    </DropdownMenu.Item>
+                            <DropdownMenu.Content>
+                                <DropdownMenu.Item asChild>
+                                    <a href="/template_json.json" download>
+                                        Template JSON
+                                    </a>
+                                </DropdownMenu.Item>
 
-                                    <DropdownMenu.Item asChild>
-                                        <a href="/example_balanced.json" download>
-                                            Example JSON- balanced
-                                        </a>
-                                    </DropdownMenu.Item>
-                                    <DropdownMenu.Item asChild>
-                                        <a href="/example_long.json" download>
-                                            Example JSON - long path
-                                        </a>
-                                    </DropdownMenu.Item>
-                                </DropdownMenu.Content>
-                            </DropdownMenu.Root>
-                        </Flex>
+                                <DropdownMenu.Item asChild>
+                                    <a href="/example_balanced.json" download>
+                                        Example JSON- balanced
+                                    </a>
+                                </DropdownMenu.Item>
+                                <DropdownMenu.Item asChild>
+                                    <a href="/example_long.json" download>
+                                        Example JSON - long path
+                                    </a>
+                                </DropdownMenu.Item>
+                            </DropdownMenu.Content>
+                        </DropdownMenu.Root>
                     </Flex>
+                </Flex>
 
-                    {/* Number of cores */}
-                    <Flex direction="column" gap="2" mb="5">
-                        <Text as="label" size="3" className="block mb-2 font-medium">
-                            Number of Cores
-                        </Text>
-                        <TextField.Root
-                            type="number"
-                            placeholder="1"
-                            {...register('numCores')}
-                            className="w-32"
-                        />
-                    </Flex>
+                {/* Number of cores */}
+                <Flex direction="column" gap="2" mb="5">
+                    <Text as="label" size="3" className="block mb-2 font-medium">
+                        Number of Cores
+                    </Text>
+                    <TextField.Root
+                        type="number"
+                        placeholder="1"
+                        {...register('numCores')}
+                        className="w-32"
+                    />
+                </Flex>
 
-                    {/* Runnables list section */}
-                    <Box mb="5">
-                        <RunnablesSection
-                            runnables={runnables}
-                            numCores={numCores}
-                            onAdd={handleAddRunnable}
-                            onRemove={handleRemoveRunnable}
-                        />
+                {/* Runnables list section */}
+                <Box mb="5">
+                    <RunnablesSection
+                        runnables={runnables}
+                        numCores={numCores}
+                        onAdd={handleAddRunnable}
+                        onRemove={handleRemoveRunnable}
+                    />
 
-                        {/* Reset all runnables */}
-                        <Flex justify="end" mt="2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                disabled={!runnables.length}
-                                onClick={handleResetRunnables}
-                            >
-                                Reset Runnables
-                            </Button>
-                        </Flex>
-                    </Box>
-
-                    {/* Simulation buttons */}
-                    <div className="flex flex-col gap-2 mt-4">
+                    <Flex justify="end" mt="2">
                         <Button
                             type="button"
-                            loading={loading}
-                            onClick={() => setDialogOpen(true)}
+                            variant="outline"
+                            disabled={!runnables.length}
+                            onClick={handleResetRunnables}
                         >
-                            Run Simulation
+                            Reset Runnables
                         </Button>
-                        {resultId && (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() =>
-                                    window.open(`/result/${resultId}`, '_blank')
-                                }
-                            >
-                                View Result
-                            </Button>
-                        )}
-                    </div>
-                </form>
-            </ScrollArea>
+                    </Flex>
+                </Box>
+
+                <div className="flex flex-col gap-2 mt-4">
+                    <Button
+                        type="button"
+                        loading={loading}
+                        onClick={() => setDialogOpen(true)}
+                    >
+                        Run Simulation
+                    </Button>
+                    {resultId && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                                window.open(`/result/${resultId}`, '_blank')
+                            }
+                        >
+                            View Result
+                        </Button>
+                    )}
+                </div>
+            </form>
 
             {/* Algorithm + policy selection dialog */}
             <SimulationDialog

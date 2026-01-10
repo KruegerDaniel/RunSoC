@@ -165,7 +165,7 @@ export default function ResultTabs({availableAlgorithms, results}: ResultTabsPro
                                 <th className="border px-2 py-1">End</th>
                                 <th className="border px-2 py-1">Task</th>
                                 <th className="border px-2 py-1">Instance</th>
-                                <th className="border px-2 py-1">Affinity</th>
+                                <th className="border px-2 py-1">Core</th>
                             </tr>
                         </thead>
                         <tbody>
