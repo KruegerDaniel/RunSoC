@@ -73,7 +73,7 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
             <ScrollArea
                 scrollbars="vertical"
                 className="border rounded-md"
-                style={{maxHeight: 600}}
+                style={{maxHeight: '50vh'}}
             >
                 <Flex direction="column" gap="4" p="2">
                     {runnables.map((runnable, idx) => (
