@@ -55,6 +55,7 @@ def run_scheduling_request(data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
                 num_cores,
                 scheduling_policy=sched_key,
                 allocation_policy=alloc_key,
+                I=3,
             )
 
             executed_task_names = {e.task for e in schedule_entries}
