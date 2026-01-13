@@ -36,7 +36,7 @@ const RunnableCard = ({runnable, index, numCores, allRunnables, onRemove}: Props
             </div>
 
             <Flex direction="column" gap="2">
-                <Text size="2">Runnable Name</Text>
+                <Text size="2">Task Name</Text>
                 <TextField.Root
                     className="w-32"
                     placeholder={`Runnable ${index + 1}`}

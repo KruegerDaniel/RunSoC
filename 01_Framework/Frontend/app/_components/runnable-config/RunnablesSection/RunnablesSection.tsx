@@ -42,7 +42,7 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
             {/* Header (non-scrollable) */}
             <Flex justify="between" align="center" mb="2">
                 <Text as="label" size="3" className="font-medium">
-                    Runnables
+                    Tasks
                 </Text>
 
                 <Flex align="center" gap="2">
@@ -61,7 +61,7 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
                     />
 
                     <Button variant="soft" type="button" onClick={onAdd}>
-                        Add Runnable
+                        Add Task
                     </Button>
                 </Flex>
             </Flex>

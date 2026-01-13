@@ -158,7 +158,7 @@ const RunnableConfigPanel = () => {
                             disabled={!runnables.length}
                             onClick={handleResetRunnables}
                         >
-                            Reset Runnables
+                            Reset Tasks
                         </Button>
                     </Flex>
                 </Box>
