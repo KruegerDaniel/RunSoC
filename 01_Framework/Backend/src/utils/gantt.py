@@ -1,4 +1,3 @@
-# gantt.py
 import base64
 import io
 
@@ -35,15 +34,6 @@ def create_gantt_chart(execution_log, title="Gantt Chart"):
             left=start,
             color=task_colors[task],
             edgecolor="black",
-        )
-        ax.text(
-            start + (end - start) / 2,
-            y_positions[core],
-            task,
-            ha="center",
-            va="center",
-            color="white",
-            fontsize=8,
         )
 
     ax.set_yticks(range(len(cores)))
@@ -85,15 +75,6 @@ def create_gantt_chart_from_main(schedule_entries, title="Gantt Chart"):
             left=e.start_time,
             color=task_colors[e.task],
             edgecolor="black",
-        )
-        ax.text(
-            e.start_time + (e.finish_time - e.start_time) / 2,
-            y_positions[e.core],
-            e.task,
-            ha="center",
-            va="center",
-            color="white",
-            fontsize=8,
         )
 
     ax.set_yticks(range(len(cores)))
