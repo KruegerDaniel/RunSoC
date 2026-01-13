@@ -50,12 +50,14 @@ const RunnableCard = ({runnable, index, numCores, allRunnables, onRemove}: Props
                     options={priorityOptions}
                     name="Priority"
                     index={index}
+                    hint="Higher number = higher scheduling priority"
                 />
                 <ConfigSelectField
                     field="affinity"
                     options={affinityOptions}
                     name="Affinity"
                     index={index}
+                    hint="Core to which this runnable is strictly assigned"
                 />
                 <Flex direction="column" gap="1">
                     <Text size="2">Execution Time (ms)</Text>
