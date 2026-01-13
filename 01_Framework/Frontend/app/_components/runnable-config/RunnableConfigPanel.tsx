@@ -1,4 +1,3 @@
-// RunnableConfigPanel.tsx
 'use client';
 
 import {useRef, useState} from 'react';
@@ -30,7 +29,6 @@ const RunnableConfigPanel = () => {
     const {watch, register, handleSubmit, setValue, getValues} =
         useFormContext<SimulationForm>();
 
-    const numCores = watch('numCores');
     const runnables = watch('runnables') ?? [];
 
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -146,7 +144,6 @@ const RunnableConfigPanel = () => {
                 <Box mb="5">
                     <RunnablesSection
                         runnables={runnables}
-                        numCores={numCores}
                         onAdd={handleAddRunnable}
                         onRemove={handleRemoveRunnable}
                     />

@@ -9,12 +9,11 @@ import {type SortKey, useRunnablesSorting} from '../hooks/useRunnablesSorting';
 
 interface Props {
     runnables: Runnable[];
-    numCores: number;
     onAdd: () => void;
     onRemove: (id: string) => void;
 }
 
-const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
+const RunnablesSection = ({runnables, onAdd, onRemove}: Props) => {
     const {sortKey, sortDir, setSortKey, setSortDir, sortWith} = useRunnablesSorting();
 
     const sortOptions = useMemo(
@@ -78,7 +77,6 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
                             key={runnable.id}
                             runnable={runnable}
                             index={originalIndex}
-                            numCores={numCores}
                             allRunnables={allRunnableNames}
                             onRemove={onRemove}
                         />;
