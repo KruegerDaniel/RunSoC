@@ -14,7 +14,7 @@ export function useImportJson(setValue: UseFormSetValue<SimulationForm>) {
                     json.runnables.every((r: any) =>
                         r.id &&
                         r.name &&
-                        typeof r.criticality === 'number' &&
+                        typeof r.priority === 'number' &&
                         typeof r.affinity === 'number' &&
                         typeof r.execution_time === 'number' &&
                         ['periodic', 'event'].includes(r.type) &&

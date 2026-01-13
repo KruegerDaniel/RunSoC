@@ -54,7 +54,7 @@ const RunnableConfigPanel = () => {
         const newRunnable = {
             id: nextId,
             name: `Runnable${nextId}`,
-            criticality: 0,
+            priority: 0,
             affinity: 0,
             period: 100,
             execution_time: 5,

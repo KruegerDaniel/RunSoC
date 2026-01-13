@@ -1,10 +1,8 @@
-// RunnablesSection.tsx
 'use client';
 
-import {Button, Flex, Text, ScrollArea} from '@radix-ui/themes';
+import {Button, Flex, ScrollArea, Text} from '@radix-ui/themes';
 import {useMemo} from 'react';
-import {useFormContext} from 'react-hook-form';
-import type {Runnable, SimulationForm} from '@/types/runnable';
+import type {Runnable} from '@/types/runnable';
 import SortControls from '../SortControls';
 import RunnableCard from './RunnableCard';
 import {type SortKey, useRunnablesSorting} from '../hooks/useRunnablesSorting';
@@ -17,13 +15,12 @@ interface Props {
 }
 
 const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
-    const {setValue} = useFormContext<SimulationForm>();
     const {sortKey, sortDir, setSortKey, setSortDir, sortWith} = useRunnablesSorting();
 
     const sortOptions = useMemo(
         () => [
             {value: 'id', label: 'ID'},
-            {value: 'criticality', label: 'Criticality'},
+            {value: 'priority', label: 'Priority'},
             {value: 'execution_time', label: 'Execution Time'},
             {value: 'name', label: 'Name'},
         ],
@@ -33,6 +30,11 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
     const allRunnableNames = useMemo(
         () => runnables.map((r) => ({id: r.id, name: r.name})),
         [runnables],
+    );
+
+    const sortedRunnables = useMemo(
+        () => sortWith(runnables),
+        [runnables, sortWith],
     );
 
     return (
@@ -50,16 +52,10 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
                         options={sortOptions}
                         onChangeKey={(k) => {
                             const key = k as SortKey;
-                            setValue('runnables', sortWith(runnables, key, sortDir), {
-                                shouldDirty: true,
-                            });
                             setSortKey(key);
                         }}
                         onToggleDir={() => {
                             const nextDir = sortDir === 'asc' ? 'desc' : 'asc';
-                            setValue('runnables', sortWith(runnables, sortKey, nextDir), {
-                                shouldDirty: true,
-                            });
                             setSortDir(nextDir);
                         }}
                     />
@@ -76,16 +72,17 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
                 style={{maxHeight: '45vh'}}
             >
                 <Flex direction="column" gap="4" p="2">
-                    {runnables.map((runnable, idx) => (
-                        <RunnableCard
+                    {sortedRunnables.map((runnable) => {
+                        const originalIndex = runnables.findIndex((r) => r.id === runnable.id);
+                        return <RunnableCard
                             key={runnable.id}
                             runnable={runnable}
-                            index={idx}
+                            index={originalIndex}
                             numCores={numCores}
                             allRunnables={allRunnableNames}
                             onRemove={onRemove}
-                        />
-                    ))}
+                        />;
+                    })},
                 </Flex>
             </ScrollArea>
         </div>

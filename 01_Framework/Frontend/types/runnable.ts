@@ -1,7 +1,7 @@
 export type Runnable = {
     id: string
     name: string
-    criticality: number
+    priority: number
     affinity: number
     period?: number
     execution_time: number

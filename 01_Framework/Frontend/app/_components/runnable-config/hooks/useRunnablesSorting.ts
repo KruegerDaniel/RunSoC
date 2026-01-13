@@ -3,7 +3,7 @@
 import {useCallback, useState} from 'react';
 import type {Runnable} from '@/types/runnable';
 
-export type SortKey = 'id' | 'name' | 'criticality' | 'execution_time'
+export type SortKey = 'id' | 'name' | 'priority' | 'execution_time'
 export type SortDir = 'asc' | 'desc'
 
 const lexical = (a: string, b: string) => a.localeCompare(b);
@@ -17,7 +17,7 @@ const numericIdCompare = (a: string, b: string) => {
 
 const baseComparators: Record<Exclude<SortKey, 'id'>, (a: Runnable, b: Runnable) => number> = {
     name: (a, b) => lexical(a.name, b.name),
-    criticality: (a, b) => a.criticality - b.criticality,
+    priority: (a, b) => a.priority - b.priority,
     execution_time: (a, b) => a.execution_time - b.execution_time,
 };
 

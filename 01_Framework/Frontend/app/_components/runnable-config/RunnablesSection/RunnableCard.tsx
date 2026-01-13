@@ -4,7 +4,7 @@ import {Runnable} from '@/types/runnable';
 import {Controller, useFormContext} from 'react-hook-form';
 import ConfigSelectField from './ConfigSelectField';
 import DependencySelector from './DependencySelector';
-import {criticalityOptions, typeOptions} from '@/app/constants';
+import {priorityOptions, typeOptions} from '@/app/constants';
 
 interface Props {
     runnable: Runnable;
@@ -46,9 +46,9 @@ const RunnableCard = ({runnable, index, numCores, allRunnables, onRemove}: Props
 
             <Flex gap="3" wrap="wrap" mt="3">
                 <ConfigSelectField
-                    field="criticality"
-                    options={criticalityOptions}
-                    name="Criticality"
+                    field="priority"
+                    options={priorityOptions}
+                    name="Priority"
                     index={index}
                 />
                 <ConfigSelectField
