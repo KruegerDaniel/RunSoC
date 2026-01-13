@@ -56,7 +56,7 @@ export default function Home() {
                 {
                     id: '1',
                     name: 'Runnable1',
-                    criticality: 0,
+                    priority: 0,
                     affinity: 0,
                     period: 100,
                     execution_time: 5,
