@@ -2,7 +2,6 @@
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
-import numpy as np
 from criticality.criticality import run_criticality
 from criticality.tri_core_criticality import \
     execution_log_core as tri_core_criticality_log

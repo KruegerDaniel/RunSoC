@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  backend:
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+      - /app/Images:rw,nosuid,nodev,noexec,mode=1777
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "5001:5001"
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_FRONTEND_ORIGIN: "http://localhost:3000"
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      BACKEND_URL: "http://backend:5001/api/schedule"
+      NEXT_PUBLIC_FRONTEND_ORIGIN: "http://localhost:3000"
+    depends_on:
+      - backend

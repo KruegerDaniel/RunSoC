@@ -568,7 +568,7 @@ tasks_balanced = {
     'Task20': {'priority': 2, 'execution_time': 30, 'type': 'event', 'deps': ['Task19']},
 }
 
-testing_tasks = tasks_balanced
+testing_tasks = tasks_long_path
 
 # Re-run (disabled to only show sweep plots later)
 schedule_dyn, finish_dyn, wait_extra_dyn = run_main_scheduler(
