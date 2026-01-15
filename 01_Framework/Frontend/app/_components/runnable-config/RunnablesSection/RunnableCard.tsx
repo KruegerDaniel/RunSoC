@@ -9,12 +9,18 @@ import {priorityOptions, typeOptions} from '@/app/constants';
 interface Props {
     runnable: Runnable;
     index: number;
+    numCores: number;
     allRunnables: { id: string; name: string }[];
     onRemove: (id: string) => void;
 }
 
-const RunnableCard = ({runnable, index, allRunnables, onRemove}: Props) => {
+const RunnableCard = ({runnable, index, numCores, allRunnables, onRemove}: Props) => {
     const {register, control} = useFormContext();
+
+    const affinityOptions = Array.from({length: numCores}, (_, i) => ({
+        value: i.toString(),
+        label: `Core ${i}`,
+    }));
 
     return (
         <Box className="border rounded-lg p-4 bg-gray-50 relative">
@@ -45,6 +51,13 @@ const RunnableCard = ({runnable, index, allRunnables, onRemove}: Props) => {
                     name="Priority"
                     index={index}
                     hint="Higher number = higher scheduling priority"
+                />
+                <ConfigSelectField
+                    field="affinity"
+                    options={affinityOptions}
+                    name="Affinity"
+                    index={index}
+                    hint="Core to which this runnable is strictly assigned"
                 />
                 <Flex direction="column" gap="1">
                     <Text size="2">Execution Time (ms)</Text>
