@@ -51,7 +51,7 @@ const RunnableConfigPanel = () => {
         ).toString();
         const newRunnable = {
             id: nextId,
-            name: `Runnable${nextId}`,
+            name: `Task${nextId}`,
             priority: 0,
             affinity: 0,
             period: 100,

@@ -80,7 +80,7 @@ const RunnablesSection = ({runnables, onAdd, onRemove}: Props) => {
                             allRunnables={allRunnableNames}
                             onRemove={onRemove}
                         />;
-                    })},
+                    })}
                 </Flex>
             </ScrollArea>
         </div>

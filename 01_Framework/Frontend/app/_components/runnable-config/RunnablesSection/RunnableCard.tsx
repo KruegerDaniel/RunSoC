@@ -33,7 +33,7 @@ const RunnableCard = ({runnable, index, allRunnables, onRemove}: Props) => {
                 <Text size="2">Task Name</Text>
                 <TextField.Root
                     className="w-32"
-                    placeholder={`Runnable ${index + 1}`}
+                    placeholder={`Task ${index + 1}`}
                     {...register(`runnables.${index}.name` as const)}
                 />
             </Flex>

@@ -55,7 +55,7 @@ export default function Home() {
             runnables: [
                 {
                     id: '1',
-                    name: 'Runnable1',
+                    name: 'Task1',
                     priority: 0,
                     affinity: 0,
                     period: 100,
@@ -70,7 +70,8 @@ export default function Home() {
     const runnables = useWatch({
         name: 'runnables',
         control: methods.control,
-    }) ?? [];
+        defaultValue: [],
+    });
 
     const nodes: Node[] = useMemo(() => {
         const depths = computeNodeDepths(runnables);
