@@ -5,11 +5,8 @@ import json
 import matplotlib.pyplot as plt
 
 from runnable_sets import RUNNABLE_SETS_50
-from main_scheduler import (
-    run_main_scheduler,
-    average_wait_per_execution,
-    _load_runnable_sets_from_json,
-)
+from example import average_wait_per_execution
+from main_scheduler import run_main_scheduler
 
 
 def ensure_output_dirs() -> tuple[str, str]:
