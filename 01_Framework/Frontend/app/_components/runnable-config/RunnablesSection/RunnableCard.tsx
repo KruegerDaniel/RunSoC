@@ -36,7 +36,7 @@ const RunnableCard = ({
                 ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-500' : 'border-gray-200 border'}`}
         >
             <div className="absolute top-2 right-2 z-20">
-                <IconButton
+                <IconButton type='button'
                     variant="ghost"
                     color="red"
                     onClick={(e) => {

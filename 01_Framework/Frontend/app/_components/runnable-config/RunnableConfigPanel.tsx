@@ -64,16 +64,14 @@ const RunnableConfigPanel = ({selection = null, onRunnableClick}: RunnableConfig
     };
 
     const handleRemoveRunnable = (id: string) => {
-        setValue(
-            'runnables',
-            runnables
-                .filter((r) => r.id !== id)
-                .map((r) => ({
-                    ...r,
-                    dependencies: r.dependencies.filter((d) => d !== id),
-                })),
-            {shouldDirty: true},
-        );
+        const nextRunnables = runnables
+            .filter((r) => r.id !== id)
+            .map((r) => ({
+                ...r,
+                dependencies: (r.dependencies ?? []).filter((d) => d !== id),
+            }));
+
+        setValue('runnables', nextRunnables, {shouldDirty: true});
     };
 
     const handleResetRunnables = () => {
