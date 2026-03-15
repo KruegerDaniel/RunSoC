@@ -1,15 +1,23 @@
 import { useEffect, useRef } from 'react';
 import ReactFlow, { Background, Controls, Edge, Node, NodeMouseHandler, ReactFlowInstance } from 'reactflow';
 
+interface RunnableSelection {
+    id: string;
+    source: 'playground' | 'panel';
+    nonce: number;
+}
+
 interface RunnablePlaygroundProps {
     nodes: Node[];
     edges: Edge[];
+    selection?: RunnableSelection | null;
     onRunnableClick?: (id: string) => void;
 }
 
 const RunnablePlayground = ({
     nodes,
     edges,
+    selection,
     onRunnableClick,
 }: RunnablePlaygroundProps) => {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -25,6 +33,23 @@ const RunnablePlayground = ({
         ro.observe(wrapperRef.current);
         return () => ro.disconnect();
     }, []);
+
+    useEffect(() => {
+        if (!selection) return;
+        if (selection.source !== 'panel') return;
+        if (!rfRef.current) return;
+
+        const nodeExists = nodes.some((node) => node.id === selection.id);
+        if (!nodeExists) return;
+
+        rfRef.current.fitView({
+            nodes: [{ id: selection.id }],
+            padding: 1.2,
+            minZoom: 1.2,
+            maxZoom: 1.8,
+            duration: 400,
+        });
+    }, [selection, nodes]);
 
     const handleNodeClick: NodeMouseHandler = (_event, node) => {
         onRunnableClick?.(String(node.id));

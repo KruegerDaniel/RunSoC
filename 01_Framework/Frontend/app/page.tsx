@@ -7,6 +7,12 @@ import { Edge, MarkerType, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { RunnableConfigPanel, RunnablePlayground } from './_components';
 
+type RunnableSelection = {
+    id: string;
+    source: 'playground' | 'panel';
+    nonce: number;
+};
+
 function computeNodeDepths(runnables: Runnable[]) {
     const depths: Record<string, number> = {};
     const byId = Object.fromEntries(runnables.map((r) => [r.id, r]));
@@ -64,7 +70,7 @@ export default function Home() {
         },
     });
 
-    const [selectedRunnableId, setSelectedRunnableId] = useState<string | null>(null);
+    const [selection, setSelection] = useState<RunnableSelection | null>(null);
 
     const runnables = useWatch({
         name: 'runnables',
@@ -129,17 +135,37 @@ export default function Home() {
         );
     }, [runnables]);
 
+    const handleSelectFromPlayground = (id: string) => {
+        setSelection({
+            id,
+            source: 'playground',
+            nonce: Date.now(),
+        });
+    };
+
+    const handleSelectFromPanel = (id: string) => {
+        setSelection({
+            id,
+            source: 'panel',
+            nonce: Date.now(),
+        });
+    };
+
     return (
         <div className="flex h-screen w-full flex-col gap-8 overflow-hidden px-4 sm:px-6 lg:px-8 py-8 md:flex-row">
             <RunnablePlayground
                 nodes={nodes}
                 edges={edges}
-                onRunnableClick={setSelectedRunnableId}
+                selection={selection}
+                onRunnableClick={handleSelectFromPlayground}
             />
 
             <div className="flex-[0_0_520px] min-w-0 overflow-auto">
                 <FormProvider {...methods}>
-                    <RunnableConfigPanel selectedRunnableId={selectedRunnableId} />
+                    <RunnableConfigPanel
+                        selection={selection}
+                        onRunnableClick={handleSelectFromPanel}
+                    />
                 </FormProvider>
             </div>
         </div>

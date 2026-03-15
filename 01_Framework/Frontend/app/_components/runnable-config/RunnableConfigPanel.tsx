@@ -14,11 +14,18 @@ import RunnablesSection from './RunnablesSection/RunnablesSection';
 import { useImportJson } from './hooks/useImportJson';
 import { useSimulationRunner } from './hooks/useSimulationRunner';
 
-interface RunnableConfigPanelProps {
-    selectedRunnableId?: string | null;
+interface RunnableSelection {
+    id: string;
+    source: 'playground' | 'panel';
+    nonce: number;
 }
 
-const RunnableConfigPanel = ({selectedRunnableId = null}: RunnableConfigPanelProps) => {
+interface RunnableConfigPanelProps {
+    selection?: RunnableSelection | null;
+    onRunnableClick?: (id: string) => void;
+}
+
+const RunnableConfigPanel = ({selection = null, onRunnableClick}: RunnableConfigPanelProps) => {
     const {watch, register, handleSubmit, setValue, getValues} =
         useFormContext<SimulationForm>();
 
@@ -141,7 +148,8 @@ const RunnableConfigPanel = ({selectedRunnableId = null}: RunnableConfigPanelPro
                         numCores={numCores}
                         onAdd={handleAddRunnable}
                         onRemove={handleRemoveRunnable}
-                        selectedRunnableId={selectedRunnableId}
+                        selection={selection}
+                        onRunnableClick={onRunnableClick}
                     />
 
                     <Flex justify="end" mt="2">

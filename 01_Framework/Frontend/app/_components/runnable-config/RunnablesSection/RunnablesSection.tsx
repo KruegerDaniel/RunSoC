@@ -7,12 +7,19 @@ import SortControls from '../SortControls';
 import RunnableCard from './RunnableCard';
 import { type SortKey, useRunnablesSorting } from '../hooks/useRunnablesSorting';
 
+interface RunnableSelection {
+    id: string;
+    source: 'playground' | 'panel';
+    nonce: number;
+}
+
 interface Props {
     runnables: Runnable[];
     numCores: number;
     onAdd: () => void;
     onRemove: (id: string) => void;
-    selectedRunnableId?: string | null;
+    selection?: RunnableSelection | null;
+    onRunnableClick?: (id: string) => void;
 }
 
 const RunnablesSection = ({
@@ -20,7 +27,8 @@ const RunnablesSection = ({
     numCores,
     onAdd,
     onRemove,
-    selectedRunnableId,
+    selection,
+    onRunnableClick,
 }: Props) => {
     const {sortKey, sortDir, setSortKey, setSortDir, sortWith} = useRunnablesSorting();
     const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -46,16 +54,17 @@ const RunnablesSection = ({
     );
 
     useEffect(() => {
-        if (!selectedRunnableId) return;
+        if (!selection) return;
+        if (selection.source !== 'playground') return;
 
-        const el = itemRefs.current[selectedRunnableId];
+        const el = itemRefs.current[selection.id];
         if (!el) return;
 
         el.scrollIntoView({
             behavior: 'smooth',
             block: 'center',
         });
-    }, [selectedRunnableId, sortedRunnables]);
+    }, [selection, sortedRunnables]);
 
     return (
         <div className="flex flex-col gap-2">
@@ -100,6 +109,8 @@ const RunnablesSection = ({
                                 ref={(node) => {
                                     itemRefs.current[runnable.id] = node;
                                 }}
+                                onClick={() => onRunnableClick?.(runnable.id)}
+                                className="cursor-pointer"
                             >
                                 <RunnableCard
                                     runnable={runnable}
@@ -107,6 +118,7 @@ const RunnablesSection = ({
                                     numCores={numCores}
                                     allRunnables={allRunnableNames}
                                     onRemove={onRemove}
+                                    isSelected={selection?.id === runnable.id}
                                 />
                             </div>
                         );
