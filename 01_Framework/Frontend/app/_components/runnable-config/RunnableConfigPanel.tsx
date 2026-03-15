@@ -1,32 +1,24 @@
 // RunnableConfigPanel.tsx
 'use client';
 
-import {useRef, useState} from 'react';
-import {
-    Box,
-    Button,
-    Flex,
-    Heading,
-    Text,
-    TextField,
-    DropdownMenu,
-} from '@radix-ui/themes';
-import {useFormContext} from 'react-hook-form';
-import type {SimulationForm} from '@/types/runnable';
-import type {
-    Algorithm,
-    AllocationPolicy,
-    SchedulingPolicy,
-} from '@/types/algorithms';
+import { useRef, useState } from 'react';
+import { Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes';
+import { useFormContext } from 'react-hook-form';
+import type { SimulationForm } from '@/types/runnable';
+import type { Algorithm, AllocationPolicy, SchedulingPolicy } from '@/types/algorithms';
 
 import ImportJsonButton from './ImportJsonButton';
 import SimulationDialog from './SimulationDialog';
 
 import RunnablesSection from './RunnablesSection/RunnablesSection';
-import {useImportJson} from './hooks/useImportJson';
-import {useSimulationRunner} from './hooks/useSimulationRunner';
+import { useImportJson } from './hooks/useImportJson';
+import { useSimulationRunner } from './hooks/useSimulationRunner';
 
-const RunnableConfigPanel = () => {
+interface RunnableConfigPanelProps {
+    selectedRunnableId?: string | null;
+}
+
+const RunnableConfigPanel = ({selectedRunnableId = null}: RunnableConfigPanelProps) => {
     const {watch, register, handleSubmit, setValue, getValues} =
         useFormContext<SimulationForm>();
 
@@ -149,6 +141,7 @@ const RunnableConfigPanel = () => {
                         numCores={numCores}
                         onAdd={handleAddRunnable}
                         onRemove={handleRemoveRunnable}
+                        selectedRunnableId={selectedRunnableId}
                     />
 
                     <Flex justify="end" mt="2">

@@ -1,21 +1,29 @@
 'use client';
 
-import {Button, Flex, ScrollArea, Text} from '@radix-ui/themes';
-import {useMemo} from 'react';
-import type {Runnable} from '@/types/runnable';
+import { Button, Flex, ScrollArea, Text } from '@radix-ui/themes';
+import { useEffect, useMemo, useRef } from 'react';
+import type { Runnable } from '@/types/runnable';
 import SortControls from '../SortControls';
 import RunnableCard from './RunnableCard';
-import {type SortKey, useRunnablesSorting} from '../hooks/useRunnablesSorting';
+import { type SortKey, useRunnablesSorting } from '../hooks/useRunnablesSorting';
 
 interface Props {
     runnables: Runnable[];
     numCores: number;
     onAdd: () => void;
     onRemove: (id: string) => void;
+    selectedRunnableId?: string | null;
 }
 
-const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
+const RunnablesSection = ({
+    runnables,
+    numCores,
+    onAdd,
+    onRemove,
+    selectedRunnableId,
+}: Props) => {
     const {sortKey, sortDir, setSortKey, setSortDir, sortWith} = useRunnablesSorting();
+    const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     const sortOptions = useMemo(
         () => [
@@ -37,9 +45,20 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
         [runnables, sortWith],
     );
 
+    useEffect(() => {
+        if (!selectedRunnableId) return;
+
+        const el = itemRefs.current[selectedRunnableId];
+        if (!el) return;
+
+        el.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+        });
+    }, [selectedRunnableId, sortedRunnables]);
+
     return (
         <div className="flex flex-col gap-2">
-            {/* Header (non-scrollable) */}
             <Flex justify="between" align="center" mb="2">
                 <Text as="label" size="3" className="font-medium">
                     Tasks
@@ -74,14 +93,23 @@ const RunnablesSection = ({runnables, numCores, onAdd, onRemove}: Props) => {
                 <Flex direction="column" gap="4" p="2">
                     {sortedRunnables.map((runnable) => {
                         const originalIndex = runnables.findIndex((r) => r.id === runnable.id);
-                        return <RunnableCard
-                            key={runnable.id}
-                            runnable={runnable}
-                            index={originalIndex}
-                            numCores={numCores}
-                            allRunnables={allRunnableNames}
-                            onRemove={onRemove}
-                        />;
+
+                        return (
+                            <div
+                                key={runnable.id}
+                                ref={(node) => {
+                                    itemRefs.current[runnable.id] = node;
+                                }}
+                            >
+                                <RunnableCard
+                                    runnable={runnable}
+                                    index={originalIndex}
+                                    numCores={numCores}
+                                    allRunnables={allRunnableNames}
+                                    onRemove={onRemove}
+                                />
+                            </div>
+                        );
                     })}
                 </Flex>
             </ScrollArea>

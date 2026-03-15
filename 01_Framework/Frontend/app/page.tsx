@@ -1,7 +1,7 @@
 'use client';
 
 import { Runnable, SimulationForm } from '@/types/runnable';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { Edge, MarkerType, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -10,8 +10,6 @@ import { RunnableConfigPanel, RunnablePlayground } from './_components';
 function computeNodeDepths(runnables: Runnable[]) {
     const depths: Record<string, number> = {};
     const byId = Object.fromEntries(runnables.map((r) => [r.id, r]));
-
-    // detect cycles in current DFS path
     const visiting = new Set<string>();
 
     const getDepth = (id: string): number => {
@@ -30,7 +28,6 @@ function computeNodeDepths(runnables: Runnable[]) {
         }
 
         if (visiting.has(id)) {
-            // break cycle gracefully
             depths[id] = 0;
             return 0;
         }
@@ -67,10 +64,12 @@ export default function Home() {
         },
     });
 
+    const [selectedRunnableId, setSelectedRunnableId] = useState<string | null>(null);
+
     const runnables = useWatch({
         name: 'runnables',
         control: methods.control,
-        defaultValue: [],
+        defaultValue: methods.getValues('runnables'),
     });
 
     const nodes: Node[] = useMemo(() => {
@@ -132,13 +131,17 @@ export default function Home() {
 
     return (
         <div className="flex h-screen w-full flex-col gap-8 overflow-hidden px-4 sm:px-6 lg:px-8 py-8 md:flex-row">
-            <RunnablePlayground nodes={nodes} edges={edges} />
+            <RunnablePlayground
+                nodes={nodes}
+                edges={edges}
+                onRunnableClick={setSelectedRunnableId}
+            />
+
             <div className="flex-[0_0_520px] min-w-0 overflow-auto">
                 <FormProvider {...methods}>
-                    <RunnableConfigPanel />
+                    <RunnableConfigPanel selectedRunnableId={selectedRunnableId} />
                 </FormProvider>
             </div>
         </div>
     );
-
 }

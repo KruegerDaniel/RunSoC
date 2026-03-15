@@ -1,18 +1,17 @@
 import { useEffect, useRef } from 'react';
-import ReactFlow, {
-    Background,
-    Controls,
-    Edge,
-    Node,
-    ReactFlowInstance,
-} from 'reactflow';
+import ReactFlow, { Background, Controls, Edge, Node, NodeMouseHandler, ReactFlowInstance } from 'reactflow';
 
 interface RunnablePlaygroundProps {
     nodes: Node[];
     edges: Edge[];
+    onRunnableClick?: (id: string) => void;
 }
 
-const RunnablePlayground = ({ nodes, edges }: RunnablePlaygroundProps) => {
+const RunnablePlayground = ({
+    nodes,
+    edges,
+    onRunnableClick,
+}: RunnablePlaygroundProps) => {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const rfRef = useRef<ReactFlowInstance | null>(null);
 
@@ -27,16 +26,20 @@ const RunnablePlayground = ({ nodes, edges }: RunnablePlaygroundProps) => {
         return () => ro.disconnect();
     }, []);
 
+    const handleNodeClick: NodeMouseHandler = (_event, node) => {
+        onRunnableClick?.(String(node.id));
+    };
+
     return (
         <div className="flex-1 bg-white rounded-lg shadow-md p-4 min-w-0">
             <div
                 ref={wrapperRef}
                 className="
-          w-full
-          h-[60vh]
-          min-h-[320px]
-          md:h-[calc(100vh-5rem)]
-        "
+                    w-full
+                    h-[60vh]
+                    min-h-[320px]
+                    md:h-[calc(100vh-5rem)]
+                "
             >
                 <ReactFlow
                     nodes={nodes}
@@ -46,6 +49,7 @@ const RunnablePlayground = ({ nodes, edges }: RunnablePlaygroundProps) => {
                         rfRef.current = instance;
                         instance.fitView({ padding: 0.2 });
                     }}
+                    onNodeClick={handleNodeClick}
                     nodesDraggable={false}
                     nodesConnectable={false}
                     elementsSelectable={false}
