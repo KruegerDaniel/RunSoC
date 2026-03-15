@@ -105,9 +105,12 @@ export default function Home() {
 
             return {
                 id: runnable.id,
-                data: { label: runnable.name },
+                data: {
+                    label: runnable.name,
+                    runnableType:runnable.type,
+                },
                 position: nodeMap[runnable.id] || { x: 0, y: 0 },
-                type: 'default',
+                type: 'runnable',
                 className: isSelected
                     ? 'runnable-node runnable-node-selected'
                     : 'runnable-node',

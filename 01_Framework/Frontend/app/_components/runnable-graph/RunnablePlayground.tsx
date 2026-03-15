@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import ReactFlow, { Background, Controls, Edge, Node, NodeMouseHandler, ReactFlowInstance } from 'reactflow';
+import RunnableFlowNode from '@/app/_components/runnable-graph/RunnableFlowNode';
 
 interface RunnableSelection {
     id: string;
@@ -22,6 +23,12 @@ const RunnablePlayground = ({
 }: RunnablePlaygroundProps) => {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const rfRef = useRef<ReactFlowInstance | null>(null);
+    const nodeTypes = useMemo(
+        () => ({
+            runnable: RunnableFlowNode,
+        }),
+        [],
+    );
 
     useEffect(() => {
         if (!selection) return;
@@ -54,23 +61,6 @@ const RunnablePlayground = ({
         });
     }, [selection, nodes]);
 
-    useEffect(() => {
-        if (!selection) return;
-        if (selection.source !== 'panel') return;
-        if (!rfRef.current) return;
-
-        const nodeExists = nodes.some((node) => node.id === selection.id);
-        if (!nodeExists) return;
-
-        rfRef.current.fitView({
-            nodes: [{ id: selection.id }],
-            padding: 1.2,
-            minZoom: 1.2,
-            maxZoom: 1.8,
-            duration: 400,
-        });
-    }, [selection, nodes]);
-
     const handleNodeClick: NodeMouseHandler = (_event, node) => {
         onRunnableClick?.(String(node.id));
     };
@@ -89,6 +79,7 @@ const RunnablePlayground = ({
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
+                    nodeTypes={nodeTypes}
                     fitView
                     onInit={(instance) => {
                         rfRef.current = instance;
