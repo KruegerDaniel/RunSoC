@@ -5,13 +5,6 @@
     --foreground: #171717;
 }
 
-@theme inline {
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --font-sans: var(--font-geist-sans);
-    --font-mono: var(--font-geist-mono);
-}
-
 @media (prefers-color-scheme: dark) {
     :root {
         --background: #0a0a0a;
@@ -23,4 +16,21 @@ body {
     background: var(--background);
     color: var(--foreground);
     font-family: Arial, Helvetica, sans-serif;
+}
+
+.runnable-node-selected {
+    border-color: #4f46e5 !important;
+    animation: runnable-node-pulse 1.4s ease-out infinite;
+}
+
+@keyframes runnable-node-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.45);
+    }
+    70% {
+        box-shadow: 0 0 0 12px rgba(79, 70, 229, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+    }
 }

@@ -100,23 +100,32 @@ export default function Home() {
             });
         });
 
-        return runnables.map((runnable) => ({
-            id: runnable.id,
-            data: { label: runnable.name },
-            position: nodeMap[runnable.id] || { x: 0, y: 0 },
-            type: 'default',
-            style: {
-                width: 60,
-                height: 60,
-                borderRadius: 30,
-                background: '#fff',
-                border: '2px solid #6366f1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            },
-        }));
-    }, [runnables]);
+        return runnables.map((runnable) => {
+            const isSelected = selection?.id === runnable.id;
+
+            return {
+                id: runnable.id,
+                data: { label: runnable.name },
+                position: nodeMap[runnable.id] || { x: 0, y: 0 },
+                type: 'default',
+                className: isSelected
+                    ? 'runnable-node runnable-node-selected'
+                    : 'runnable-node',
+                style: {
+                    width: 60,
+                    height: 60,
+                    borderRadius: '9999px',
+                    background: '#fff',
+                    border: '2px solid #6366f1',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: isSelected ? 600 : 400,
+                },
+            };
+        });
+    }, [runnables, selection]);
 
     const edges: Edge[] = useMemo(() => {
         const existingIds = new Set(runnables.map((r) => r.id));

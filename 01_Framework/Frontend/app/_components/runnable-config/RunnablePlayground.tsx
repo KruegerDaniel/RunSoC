@@ -24,15 +24,35 @@ const RunnablePlayground = ({
     const rfRef = useRef<ReactFlowInstance | null>(null);
 
     useEffect(() => {
-        if (!wrapperRef.current) return;
+        if (!selection) return;
+        if (selection.source !== 'panel') return;
+        if (!rfRef.current) return;
 
-        const ro = new ResizeObserver(() => {
-            rfRef.current?.fitView({ padding: 0.2, duration: 150 });
+        const selectedNode = nodes.find((node) => node.id === selection.id);
+        if (!selectedNode) return;
+
+        const width =
+            typeof selectedNode.width === 'number'
+                ? selectedNode.width
+                : typeof selectedNode.style?.width === 'number'
+                    ? selectedNode.style.width
+                    : 60;
+
+        const height =
+            typeof selectedNode.height === 'number'
+                ? selectedNode.height
+                : typeof selectedNode.style?.height === 'number'
+                    ? selectedNode.style.height
+                    : 60;
+
+        const centerX = selectedNode.position.x + width / 2;
+        const centerY = selectedNode.position.y + height / 2;
+
+        rfRef.current.setCenter(centerX, centerY, {
+            zoom: 1.5,
+            duration: 400,
         });
-
-        ro.observe(wrapperRef.current);
-        return () => ro.disconnect();
-    }, []);
+    }, [selection, nodes]);
 
     useEffect(() => {
         if (!selection) return;
