@@ -1,17 +1,21 @@
 'use client';
 
 import { Runnable, SimulationForm } from '@/types/runnable';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { Edge, MarkerType, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { RunnableConfigPanel, RunnablePlayground } from './_components';
 
+type RunnableSelection = {
+    id: string;
+    source: 'playground' | 'panel';
+    nonce: number;
+};
+
 function computeNodeDepths(runnables: Runnable[]) {
     const depths: Record<string, number> = {};
     const byId = Object.fromEntries(runnables.map((r) => [r.id, r]));
-
-    // detect cycles in current DFS path
     const visiting = new Set<string>();
 
     const getDepth = (id: string): number => {
@@ -30,7 +34,6 @@ function computeNodeDepths(runnables: Runnable[]) {
         }
 
         if (visiting.has(id)) {
-            // break cycle gracefully
             depths[id] = 0;
             return 0;
         }
@@ -67,10 +70,12 @@ export default function Home() {
         },
     });
 
+    const [selection, setSelection] = useState<RunnableSelection | null>(null);
+
     const runnables = useWatch({
         name: 'runnables',
         control: methods.control,
-        defaultValue: [],
+        defaultValue: methods.getValues('runnables'),
     });
 
     const nodes: Node[] = useMemo(() => {
@@ -95,23 +100,35 @@ export default function Home() {
             });
         });
 
-        return runnables.map((runnable) => ({
-            id: runnable.id,
-            data: { label: runnable.name },
-            position: nodeMap[runnable.id] || { x: 0, y: 0 },
-            type: 'default',
-            style: {
-                width: 60,
-                height: 60,
-                borderRadius: 30,
-                background: '#fff',
-                border: '2px solid #6366f1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            },
-        }));
-    }, [runnables]);
+        return runnables.map((runnable) => {
+            const isSelected = selection?.id === runnable.id;
+
+            return {
+                id: runnable.id,
+                data: {
+                    label: runnable.name,
+                    runnableType:runnable.type,
+                },
+                position: nodeMap[runnable.id] || { x: 0, y: 0 },
+                type: 'runnable',
+                className: isSelected
+                    ? 'runnable-node runnable-node-selected'
+                    : 'runnable-node',
+                style: {
+                    width: 60,
+                    height: 60,
+                    borderRadius: '9999px',
+                    background: '#fff',
+                    border: '2px solid #6366f1',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: isSelected ? 600 : 400,
+                },
+            };
+        });
+    }, [runnables, selection]);
 
     const edges: Edge[] = useMemo(() => {
         const existingIds = new Set(runnables.map((r) => r.id));
@@ -130,15 +147,39 @@ export default function Home() {
         );
     }, [runnables]);
 
+    const handleSelectFromPlayground = (id: string) => {
+        setSelection({
+            id,
+            source: 'playground',
+            nonce: Date.now(),
+        });
+    };
+
+    const handleSelectFromPanel = (id: string) => {
+        setSelection({
+            id,
+            source: 'panel',
+            nonce: Date.now(),
+        });
+    };
+
     return (
         <div className="flex h-screen w-full flex-col gap-8 overflow-hidden px-4 sm:px-6 lg:px-8 py-8 md:flex-row">
-            <RunnablePlayground nodes={nodes} edges={edges} />
+            <RunnablePlayground
+                nodes={nodes}
+                edges={edges}
+                selection={selection}
+                onRunnableClick={handleSelectFromPlayground}
+            />
+
             <div className="flex-[0_0_520px] min-w-0 overflow-auto">
                 <FormProvider {...methods}>
-                    <RunnableConfigPanel />
+                    <RunnableConfigPanel
+                        selection={selection}
+                        onRunnableClick={handleSelectFromPanel}
+                    />
                 </FormProvider>
             </div>
         </div>
     );
-
 }
