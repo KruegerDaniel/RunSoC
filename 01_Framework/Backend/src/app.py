@@ -5,6 +5,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from api.scheduling_service import run_scheduling_request
+from scheduling.ilp.solver_service import solve_instance
+from schemas.schemas import ProblemInstance
 
 # Ensure local imports work
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -23,6 +25,16 @@ def schedule():
         # last line of defense, but most errors should be handled in service
         return jsonify({'error': str(e)}), 500
 
+@app.post('/api/solve')
+def solve():
+    print("Working")
+    try:
+        data = request.get_json()
+        problem = ProblemInstance(**data)
+        result = solve_instance(problem)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/health', methods=['GET'])
 def health():
