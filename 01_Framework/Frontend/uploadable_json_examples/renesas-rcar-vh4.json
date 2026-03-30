@@ -1,0 +1,182 @@
+{
+  "platform": {
+    "name": "renesas_rcar_vh4_7",
+    "numCores": 6,
+    "numClusters": 2,
+    "globalScheduling": "partitioned_fixed_priority",
+    "timeUnit": "ms",
+    "clusters": [
+      {
+        "name": "app_cluster_0",
+        "id": "app_cluster_0",
+        "type": "application",
+        "numCores": 2,
+        "notes": "General compute cluster for ADAS/AD applications",
+        "cores": [
+          {
+            "name": "arm_cortex_a76",
+            "kDMIPS": 49,
+            "frequencyGhz": 1.8,
+            "count": 2,
+            "type": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "General compute for ADAS/AD applications"
+          }
+        ]
+      },
+      {
+        "name": "app_cluster_1",
+        "id": "app_cluster_1",
+        "type": "application",
+        "numCores": 2,
+        "cores": [
+          {
+            "name": "arm_cortex_a76",
+            "count": 2,
+            "type": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "General compute for ADAS/AD applications"
+          }
+        ]
+      },
+      {
+        "name": "rt_cluster_0",
+        "id": "rt_cluster_0",
+        "type": "safety",
+        "numCores": 1,
+        "notes": "Safety Island for ASIL tasks",
+        "cores": [
+          {
+            "name": "cortex_r52",
+            "count": 1,
+            "type": "safety",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "Lockstep cores to support ASIL D real-time operations"
+          }
+        ]
+      },
+      {
+        "name": "rt_cluster_1",
+        "id": "rt_cluster_1",
+        "type": "safety",
+        "numCores": 1,
+        "notes": "Safety Island for ASIL tasks",
+        "sharedMemory": [],
+        "cores": [
+          {
+            "name": "cortex_R52",
+            "count": 1,
+            "type": "safety",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "Lockstep cores to support ASIL D real-time operations"
+          }
+        ]
+      },
+      {
+        "name": "rt_cluster_2",
+        "id": "rt_cluster_2",
+        "type": "safety",
+        "numCores": 1,
+        "notes": "Safety Island for ASIL tasks",
+        "cores": [
+          {
+            "name": "cortex_R52",
+            "count": 1,
+            "type": "safety",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "Lockstep cores to support ASIL D real-time operations"
+          }
+        ]
+      }
+    ],
+    "memoryNodes": [
+      {
+        "id": "a76_c0_l3",
+        "type": "cache",
+        "level": "L3",
+        "scope": "cluster",
+        "sharedBy": [
+          "app_cluster_0"
+        ],
+        "sizeKB": 512,
+        "coherent": true
+      },
+      {
+        "id": "a76_c1_l3",
+        "type": "cache",
+        "level": "L3",
+        "scope": "cluster",
+        "sharedBy": [
+          "app_cluster_1"
+        ],
+        "sizeKB": 512,
+        "coherent": true
+      },
+      {
+        "id": "main_dram",
+        "type": "dram",
+        "scope": "system",
+        "sharedBy": [
+          "app_cluster_0",
+          "app_cluster_1",
+          "rt_cluster_0",
+          "rt_cluster_1",
+          "rt_cluster_2",
+          "gpu",
+          "imp",
+          "video",
+          "sys_dmac",
+          "rt_dmac"
+        ],
+        "technology": "LPDDR5",
+        "capacityGB": 16,
+        "coherent": false,
+        "contentionDomain": "mm_ddr"
+      }
+    ]
+  },
+  "runnables": [
+    {
+      "id": "mandatory",
+      "name": "mandatory",
+      "criticality": 0,
+      "priority": 0,
+      "period": 0,
+      "wcet": 1,
+      "memory_usageKB": 15,
+      "type": "mandatory",
+      "core_affinities": [
+        "group"
+      ],
+      "dependencies": [
+        "runnable_id"
+      ]
+    }
+  ],
+  "communications": []
+}
