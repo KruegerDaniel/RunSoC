@@ -1,34 +1,35 @@
+// RunnableConfigPanel.tsx
 'use client';
 
-import {useRef, useState} from 'react';
-import {
-    Box,
-    Button,
-    Flex,
-    Heading,
-    Text,
-    TextField,
-    DropdownMenu,
-} from '@radix-ui/themes';
-import {useFormContext} from 'react-hook-form';
-import type {SimulationForm} from '@/types/runnable';
-import type {
-    Algorithm,
-    AllocationPolicy,
-    SchedulingPolicy,
-} from '@/types/algorithms';
+import { useRef, useState } from 'react';
+import { Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes';
+import { useFormContext } from 'react-hook-form';
+import type { SimulationForm } from '@/types/runnable';
+import type { Algorithm, AllocationPolicy, SchedulingPolicy } from '@/types/algorithms';
 
 import ImportJsonButton from './ImportJsonButton';
 import SimulationDialog from './SimulationDialog';
 
 import RunnablesSection from './RunnablesSection/RunnablesSection';
-import {useImportJson} from './hooks/useImportJson';
-import {useSimulationRunner} from './hooks/useSimulationRunner';
+import { useImportJson } from './hooks/useImportJson';
+import { useSimulationRunner } from './hooks/useSimulationRunner';
 
-const RunnableConfigPanel = () => {
+interface RunnableSelection {
+    id: string;
+    source: 'playground' | 'panel';
+    nonce: number;
+}
+
+interface RunnableConfigPanelProps {
+    selection?: RunnableSelection | null;
+    onRunnableClick?: (id: string) => void;
+}
+
+const RunnableConfigPanel = ({selection = null, onRunnableClick}: RunnableConfigPanelProps) => {
     const {watch, register, handleSubmit, setValue, getValues} =
         useFormContext<SimulationForm>();
 
+    const numCores = watch('numCores');
     const runnables = watch('runnables') ?? [];
 
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -51,7 +52,7 @@ const RunnableConfigPanel = () => {
         ).toString();
         const newRunnable = {
             id: nextId,
-            name: `Runnable${nextId}`,
+            name: `Task${nextId}`,
             priority: 0,
             affinity: 0,
             period: 100,
@@ -63,16 +64,14 @@ const RunnableConfigPanel = () => {
     };
 
     const handleRemoveRunnable = (id: string) => {
-        setValue(
-            'runnables',
-            runnables
-                .filter((r) => r.id !== id)
-                .map((r) => ({
-                    ...r,
-                    dependencies: r.dependencies.filter((d) => d !== id),
-                })),
-            {shouldDirty: true},
-        );
+        const nextRunnables = runnables
+            .filter((r) => r.id !== id)
+            .map((r) => ({
+                ...r,
+                dependencies: (r.dependencies ?? []).filter((d) => d !== id),
+            }));
+
+        setValue('runnables', nextRunnables, {shouldDirty: true});
     };
 
     const handleResetRunnables = () => {
@@ -144,8 +143,11 @@ const RunnableConfigPanel = () => {
                 <Box mb="5">
                     <RunnablesSection
                         runnables={runnables}
+                        numCores={numCores}
                         onAdd={handleAddRunnable}
                         onRemove={handleRemoveRunnable}
+                        selection={selection}
+                        onRunnableClick={onRunnableClick}
                     />
 
                     <Flex justify="end" mt="2">

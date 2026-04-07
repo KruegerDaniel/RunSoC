@@ -4,7 +4,6 @@
     {
       "id": "1",
       "name": "Runnable1",
-      "criticality": 1,
       "priority": 1,
       "affinity": 0,
       "period": 100,
@@ -15,7 +14,6 @@
     {
       "id": "2",
       "name": "Runnable2",
-      "criticality": 2,
       "priority": 2,
       "affinity": 0,
       "period": 180,
@@ -26,7 +24,6 @@
     {
       "id": "3",
       "name": "Runnable3",
-      "criticality": 1,
       "priority": 1,
       "affinity": 0,
       "period": 0,

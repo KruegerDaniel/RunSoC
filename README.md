@@ -143,7 +143,7 @@ Once the peer review is complete, the repository will be updated with researcher
 
 8. **Design Principles and Extendability**
 
-    * Integrates dependency- and criticality-awareness in scheduling and allocation.
+    * Integrates dependency- and priority-awareness in scheduling and allocation.
     
     * Offers practical guidelines for selecting allocation/scheduling methods based on measurable metrics.
     

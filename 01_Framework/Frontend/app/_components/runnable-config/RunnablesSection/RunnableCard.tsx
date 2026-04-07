@@ -1,31 +1,51 @@
-import {Box, Flex, IconButton, Text, TextField} from '@radix-ui/themes';
-import {Cross2Icon} from '@radix-ui/react-icons';
-import {Runnable} from '@/types/runnable';
-import {Controller, useFormContext} from 'react-hook-form';
+import { Box, Flex, IconButton, Text, TextField } from '@radix-ui/themes';
+import { Cross2Icon } from '@radix-ui/react-icons';
+import { Runnable } from '@/types/runnable';
+import { Controller, useFormContext } from 'react-hook-form';
 import ConfigSelectField from './ConfigSelectField';
 import DependencySelector from './DependencySelector';
-import {priorityOptions, typeOptions} from '@/app/constants';
+import { priorityOptions, typeOptions } from '@/app/constants';
 
 interface Props {
     runnable: Runnable;
     index: number;
+    numCores: number;
     allRunnables: { id: string; name: string }[];
     onRemove: (id: string) => void;
+    isSelected?: boolean;
 }
 
-const RunnableCard = ({runnable, index, allRunnables, onRemove}: Props) => {
+const RunnableCard = ({
+    runnable,
+    index,
+    numCores,
+    allRunnables,
+    onRemove,
+    isSelected = false,
+}: Props) => {
     const {register, control} = useFormContext();
 
+    const affinityOptions = Array.from({length: numCores}, (_, i) => ({
+        value: i.toString(),
+        label: `Core ${i}`,
+    }));
+
     return (
-        <Box className="border rounded-lg p-4 bg-gray-50 relative">
+        <Box
+            className={`relative rounded-lg p-4 bg-gray-50 transition
+                ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-500' : 'border-gray-200 border'}`}
+        >
             <div className="absolute top-2 right-2 z-20">
-                <IconButton
+                <IconButton type='button'
                     variant="ghost"
                     color="red"
-                    onClick={() => onRemove(runnable.id)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onRemove(runnable.id);
+                    }}
                     aria-label="Remove Runnable"
                 >
-                    <Cross2Icon/>
+                    <Cross2Icon />
                 </IconButton>
             </div>
 
@@ -33,8 +53,9 @@ const RunnableCard = ({runnable, index, allRunnables, onRemove}: Props) => {
                 <Text size="2">Task Name</Text>
                 <TextField.Root
                     className="w-32"
-                    placeholder={`Runnable ${index + 1}`}
+                    placeholder={`Task ${index + 1}`}
                     {...register(`runnables.${index}.name` as const)}
+                    onClick={(e) => e.stopPropagation()}
                 />
             </Flex>
 
@@ -46,12 +67,20 @@ const RunnableCard = ({runnable, index, allRunnables, onRemove}: Props) => {
                     index={index}
                     hint="Higher number = higher scheduling priority"
                 />
+                <ConfigSelectField
+                    field="affinity"
+                    options={affinityOptions}
+                    name="Affinity"
+                    index={index}
+                    hint="Core to which this runnable is strictly assigned"
+                />
                 <Flex direction="column" gap="1">
                     <Text size="2">Execution Time (ms)</Text>
                     <TextField.Root
                         type="number"
                         className="w-24"
                         {...register(`runnables.${index}.execution_time` as const)}
+                        onClick={(e) => e.stopPropagation()}
                     />
                 </Flex>
                 <ConfigSelectField
@@ -67,6 +96,7 @@ const RunnableCard = ({runnable, index, allRunnables, onRemove}: Props) => {
                             type="number"
                             className="w-24"
                             {...register(`runnables.${index}.period` as const)}
+                            onClick={(e) => e.stopPropagation()}
                         />
                     </Flex>
                 )}
