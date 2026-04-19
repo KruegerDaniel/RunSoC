@@ -1,15 +1,18 @@
 from ortools.sat.python import cp_model
 
-
 from schemas.schemas import ProblemInstance
 from .model_builder import build_model_cpsat
+from ..base_solver import BaseSolver
 
-class CpSolverService:
+
+class CpSolverService(BaseSolver):
+    name = "CPSAT"
+
     def __init__(self, time_limit_seconds: float = 5000.0, num_workers: int = 8):
         self.time_limit_seconds = time_limit_seconds
         self.num_workers = num_workers
 
-    def solve_instance(self, problem: "ProblemInstance") -> dict:
+    def solve(self, problem: ProblemInstance) -> dict:
         model, vars_dict = build_model_cpsat(problem)
         solver = cp_model.CpSolver()
 

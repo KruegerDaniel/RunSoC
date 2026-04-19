@@ -1,15 +1,18 @@
 import pulp
 
+from scheduling.base_solver import BaseSolver
 from scheduling.ilp.model_builder import build_model
 from schemas.schemas import ProblemInstance
 
 
-class IlpSolverService:
+class IlpSolverService(BaseSolver):
+    name = "ILP"
+
     def __init__(self):
         self.time_limit_seconds = 100  # add config class
         self.keepFiles = False
 
-    def solve_instance(self, problem: ProblemInstance):
+    def solve(self, problem: ProblemInstance) -> dict:
         model, variables = build_model(problem)
 
         solver = pulp.PULP_CBC_CMD(msg=True, keepFiles=self.keepFiles, logPath="cbc.log",

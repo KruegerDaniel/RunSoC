@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List
+
+from pydantic import BaseModel
+
 
 class Task(BaseModel):
     id: str
