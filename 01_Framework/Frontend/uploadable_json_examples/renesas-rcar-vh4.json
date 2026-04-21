@@ -1,8 +1,21 @@
 {
+  "config": {
+    "generateComms": true,
+    "commsPenaltyWeight": {
+      "intraCoreWeight": 0,
+      "interCoreWeight": 8,
+      "interClusterWeight": 15,
+      "interAppWeight": 100
+    },
+    "memoryPenaltyScaling": {
+      "interCoreScale": 1,
+      "interClusterScale": 2
+    }
+  },
   "platform": {
     "name": "renesas_rcar_vh4_7",
-    "numCores": 6,
-    "numClusters": 2,
+    "numCores": 7,
+    "numClusters": 5,
     "globalScheduling": "partitioned_fixed_priority",
     "timeUnit": "ms",
     "clusters": [
@@ -10,15 +23,16 @@
         "name": "app_cluster_0",
         "id": "app_cluster_0",
         "type": "application",
+        "executionDomain": "general_purpose",
         "numCores": 2,
         "notes": "General compute cluster for ADAS/AD applications",
         "cores": [
           {
             "name": "arm_cortex_a76",
+            "id": "core_00",
             "kDMIPS": 49,
             "frequencyGhz": 1.8,
-            "count": 2,
-            "type": "general_purpose",
+            "executionDomain": "general_purpose",
             "wcetScale": 1.0,
             "localMemoryKB": 384,
             "supportedTaskTypes": [
@@ -26,6 +40,27 @@
               "periodic"
             ],
             "notes": "General compute for ADAS/AD applications"
+          },
+          {
+            "name": "arm_cortex_a76",
+            "id": "core_01",
+            "kDMIPS": 49,
+            "frequencyGhz": 1.8,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "General compute for ADAS/AD applications"
+          }
+        ],
+        "memory": [
+          {
+            "type": "cache",
+            "level": "L3",
+            "sizeKB": 512
           }
         ]
       },
@@ -33,12 +68,26 @@
         "name": "app_cluster_1",
         "id": "app_cluster_1",
         "type": "application",
+        "executionDomain": "general_purpose",
         "numCores": 2,
+        "notes": "General compute cluster for ADAS/AD applications",
         "cores": [
           {
             "name": "arm_cortex_a76",
-            "count": 2,
-            "type": "general_purpose",
+            "id": "core_02",
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "General compute for ADAS/AD applications"
+          },
+          {
+            "name": "arm_cortex_a76",
+            "id": "core_03",
+            "executionDomain": "general_purpose",
             "wcetScale": 1.0,
             "localMemoryKB": 384,
             "supportedTaskTypes": [
@@ -47,19 +96,27 @@
             ],
             "notes": "General compute for ADAS/AD applications"
           }
+        ],
+        "memory": [
+          {
+            "type": "cache",
+            "level": "L3",
+            "sizeKB": 512
+          }
         ]
       },
       {
         "name": "rt_cluster_0",
         "id": "rt_cluster_0",
         "type": "safety",
+        "executionDomain": "safety",
         "numCores": 1,
         "notes": "Safety Island for ASIL tasks",
         "cores": [
           {
             "name": "cortex_r52",
-            "count": 1,
-            "type": "safety",
+            "id": "core_04",
+            "executionDomain": "safety",
             "wcetScale": 1.0,
             "localMemoryKB": 384,
             "supportedTaskTypes": [
@@ -74,14 +131,15 @@
         "name": "rt_cluster_1",
         "id": "rt_cluster_1",
         "type": "safety",
+        "executionDomain": "safety",
         "numCores": 1,
         "notes": "Safety Island for ASIL tasks",
         "sharedMemory": [],
         "cores": [
           {
             "name": "cortex_R52",
-            "count": 1,
-            "type": "safety",
+            "id": "core_05",
+            "executionDomain": "safety",
             "wcetScale": 1.0,
             "localMemoryKB": 384,
             "supportedTaskTypes": [
@@ -96,13 +154,14 @@
         "name": "rt_cluster_2",
         "id": "rt_cluster_2",
         "type": "safety",
+        "executionDomain": "safety",
         "numCores": 1,
         "notes": "Safety Island for ASIL tasks",
         "cores": [
           {
             "name": "cortex_R52",
-            "count": 1,
-            "type": "safety",
+            "id": "core_06",
+            "executionDomain": "safety",
             "wcetScale": 1.0,
             "localMemoryKB": 384,
             "supportedTaskTypes": [
@@ -116,42 +175,16 @@
     ],
     "memoryNodes": [
       {
-        "id": "a76_c0_l3",
-        "type": "cache",
-        "level": "L3",
-        "scope": "cluster",
-        "sharedBy": [
-          "app_cluster_0"
-        ],
-        "sizeKB": 512,
-        "coherent": true
-      },
-      {
-        "id": "a76_c1_l3",
-        "type": "cache",
-        "level": "L3",
-        "scope": "cluster",
-        "sharedBy": [
-          "app_cluster_1"
-        ],
-        "sizeKB": 512,
-        "coherent": true
-      },
-      {
-        "id": "main_dram",
+        "id": "mn_00",
+        "name": "main_dram",
         "type": "dram",
         "scope": "system",
-        "sharedBy": [
+        "accessibleBy": [
           "app_cluster_0",
           "app_cluster_1",
           "rt_cluster_0",
           "rt_cluster_1",
-          "rt_cluster_2",
-          "gpu",
-          "imp",
-          "video",
-          "sys_dmac",
-          "rt_dmac"
+          "rt_cluster_2"
         ],
         "technology": "LPDDR5",
         "capacityGB": 16,
@@ -160,23 +193,63 @@
       }
     ]
   },
-  "runnables": [
+  "tasks": [
     {
-      "id": "mandatory",
-      "name": "mandatory",
+      "id": "r_00",
+      "name": "infotainment",
+      "criticality": 0,
+      "priority": 0,
+      "period": 2,
+      "wcet": 1,
+      "memoryUsageKB": 15,
+      "requiredDomain": "general_purpose",
+      "eligibleCores": [
+      ],
+      "dependencies": [
+      ]
+    },
+    {
+      "id": "r_01",
+      "name": "infotainment",
       "criticality": 0,
       "priority": 0,
       "period": 0,
       "wcet": 1,
-      "memory_usageKB": 15,
-      "type": "mandatory",
-      "core_affinities": [
-        "group"
+      "memoryUsageKB": 15,
+      "requiredDomain": "general_purpose",
+      "eligibleCores": [
       ],
       "dependencies": [
-        "runnable_id"
+        "r_00"
+      ]
+    },
+    {
+      "id": "r_02",
+      "name": "brake_watch",
+      "criticality": 0,
+      "priority": 0,
+      "period": 10,
+      "wcet": 1,
+      "memoryUsageKB": 15,
+      "requiredDomain": "safety",
+      "eligibleCores": [
+      ],
+      "dependencies": [
       ]
     }
   ],
-  "communications": []
+  "communications": [
+    {
+      "source": "c_00",
+      "target": "c_01",
+      "scope": "cross_core",
+      "penalty": 5
+    },
+    {
+      "source": "c_01",
+      "target": "c_04",
+      "scope": "cross_cluster",
+      "penalty": 10
+    }
+  ]
 }

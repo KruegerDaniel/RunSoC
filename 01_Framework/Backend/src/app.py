@@ -5,8 +5,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from pydantic import ValidationError
 
+from mappers.problem_instance_mapper import ProblemInstanceMapper
 from scheduling.cpsat.cp_solver_service import CpSolverService
-from scheduling.ga.ga_solver_service import GaSolverService
 from scheduling.ilp.ilp_solver_service import IlpSolverService
 from schemas.schemas import ProblemInstance
 from services.scheduling_service import run_scheduling_request
@@ -19,8 +19,8 @@ CORS(app)
 solvers = {
     "CPSAT": CpSolverService(),
     "ILP": IlpSolverService(),
-    "GA": GaSolverService(),
 }
+mapper = ProblemInstanceMapper()
 
 
 @app.route("/api/schedule", methods=["POST"])
@@ -38,7 +38,7 @@ def schedule():
 def solve(solver_name: str):
     try:
         data = request.get_json(silent=True) or {}
-        problem = ProblemInstance(**data)
+        problem = mapper.from_request_json(data)
 
         solver_key = solver_name.upper()
         solver = solvers.get(solver_key)
