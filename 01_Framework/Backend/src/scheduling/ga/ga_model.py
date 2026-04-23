@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 
 import pygad
 
-from schemas.schemas import ProblemInstance, Task, Core, Dependency, Communication
+from schemas.schemas import ProblemInstance, Task, Core, Dependency, CommunicationPath
 
 
 class GaModel:
@@ -255,14 +255,14 @@ if __name__ == "main":
             Dependency(predecessor="E2", successor="F2"),
         ],
         communications=[
-            Communication(source="A", target="C", latency=2),
-            Communication(source="A", target="B", latency=4),
-            Communication(source="C", target="E", latency=2),
-            Communication(source="E", target="F", latency=4),
-            Communication(source="A2", target="C2", latency=2),
-            Communication(source="A2", target="B2", latency=4),
-            Communication(source="C2", target="E2", latency=2),
-            Communication(source="E2", target="F2", latency=4),
+            CommunicationPath(source="A", target="C", latency=2),
+            CommunicationPath(source="A", target="B", latency=4),
+            CommunicationPath(source="C", target="E", latency=2),
+            CommunicationPath(source="E", target="F", latency=4),
+            CommunicationPath(source="A2", target="C2", latency=2),
+            CommunicationPath(source="A2", target="B2", latency=4),
+            CommunicationPath(source="C2", target="E2", latency=2),
+            CommunicationPath(source="E2", target="F2", latency=4),
         ],
         memory_penalty_weight=10.0,
     )

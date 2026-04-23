@@ -1,30 +1,82 @@
-from typing import List
+from typing import List, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Task(BaseModel):
     id: str
+    name: str
+    task_type: Literal["event", "periodic"]
+    period: int = 0  # Only relevant info for periodic tasks. Not used in scheduler
+    min_start: int = 0 # Earliest schedulable time for task
     duration: int
     memory: int
     eligible_cores: List[str]
+    required_domain: Literal["general_purpose", "safety", "none"] = "none"
+    notes: str = ""
 
 class Dependency(BaseModel):
     predecessor: str
     successor: str
 
-class Communication(BaseModel):
-    source: str
-    target: str
-    latency: int
+# Only for explicitly defined communication paths
+class CommunicationPath(BaseModel):
+    source: str # core
+    target: str # core
+    penalty: int = 0
+    notes: str = ""
+
 
 class Core(BaseModel):
     id: str
+    name: str
+    cluster_id: str
+    wcet_scale: float = 1.0
+    execution_domain: Literal["general_purpose", "safety"]
+    supported_task_types: List[Literal["event", "periodic"]]
     memory_budget: int
+    notes: str = ""
+
+class Cluster(BaseModel):
+    id: str
+    name: str
+    execution_domain: Literal["general_purpose", "safety"]
+    memory_budget: int
+    memory_type: str = "cache"
+    memory_level: str = "L3"
+    notes: str = ""
+
+class MemoryNode(BaseModel):
+    id: str
+    name: str
+    type: str = "dram"
+    scope: str = "system"
+    accessible_by: List[str]
+    capacity: int
+    notes: str = ""
+
 
 class ProblemInstance(BaseModel):
-    tasks: List[Task]
-    dependencies: List[Dependency] = []
-    communications: List[Communication] = []
-    cores: List[Core]
-    memory_penalty_weight: int = 1
+    tasks: List[Task] = Field(default_factory=list)
+    dependencies: List[Dependency] = Field(default_factory=list)
+    communication_paths: List[CommunicationPath] = Field(default_factory=list)
+    clusters: List[Cluster] = Field(default_factory=list)
+    memory_nodes: List[MemoryNode] = Field(default_factory=list)
+    cores: List[Core] = Field(default_factory=list)
+
+    memory_penalty_scale: dict = Field(
+        default_factory=lambda: {
+            "core_overflow_scale": 1,
+            "cluster_overflow_scale": 1,
+        }
+    )
+
+    comms_penalty_weight: dict = Field(
+        default_factory=lambda: {
+            "intra_core_weight": 0,
+            "inter_core_weight": 8,
+            "inter_cluster_weight": 15,
+            "inter_app_weight": 100,  # ignored since task set will not use cross-domain
+        }
+    )
+
