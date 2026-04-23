@@ -8,8 +8,8 @@
       "interAppWeight": 100
     },
     "memoryPenaltyScaling": {
-      "interCoreScale": 1,
-      "interClusterScale": 2
+      "coreOverflowScale": 1,
+      "clusterOverflowScale": 2
     }
   },
   "platform": {
@@ -242,13 +242,11 @@
     {
       "source": "c_00",
       "target": "c_01",
-      "scope": "cross_core",
       "penalty": 5
     },
     {
       "source": "c_01",
       "target": "c_04",
-      "scope": "cross_cluster",
       "penalty": 10
     }
   ]

@@ -32,7 +32,7 @@ class ProblemInstanceMapper:
             raise ValueError(
                 f"Number of cores in the problem instance ({len(cores)}) does not match the number of cores specified in the request ({num_cores}).")
 
-        memory_nodes = self._extract_memory_nodes(data, cl_ids=[c.id for c in clusters])
+        #memory_nodes = self._extract_memory_nodes(data, cl_ids=[c.id for c in clusters])
         comms = self._extract_comms(data)
 
         tasks, dependencies = self._extract_taskset(data)
@@ -43,8 +43,7 @@ class ProblemInstanceMapper:
             dependencies=dependencies,
             clusters=clusters,
             cores=cores,
-            communications=comms,
-            memory_nodes=memory_nodes,
+            communication_paths=comms,
             memory_penalty_scale=mem_scale,
             comms_penalty_weight=comms_weight,
         )
@@ -61,8 +60,8 @@ class ProblemInstanceMapper:
 
         mem_penalty_scale = config.get("memoryPenaltyScale", {})
         mem_scale = {
-            "inter_core_scale": mem_penalty_scale.get("interCoreScale", 1),
-            "inter_cluster_scale": mem_penalty_scale.get("interClusterScale", 1),
+            "core_overflow_scale": mem_penalty_scale.get("coreOverflowScale", 1),
+            "cluster_overflow_scale": mem_penalty_scale.get("clusterOverflowScale", 1),
         }
         return comms_weight, mem_scale
 
@@ -241,6 +240,7 @@ class ProblemInstanceMapper:
                         task_type=curr_task.task_type,
                         duration=curr_task.duration,
                         period=curr_task.period,
+                        min_start=curr_task.period, # Since min_start = 0 + 1 * prev_task.period
                         memory=curr_task.memory,
                         eligible_cores=curr_task.eligible_cores,
                     )
@@ -292,22 +292,22 @@ class ProblemInstanceMapper:
             if obj_type == PlatformObjectType.CLUSTER:
                 dup = Cluster(
                     id=new_id,
-                    name=f"{obj.name}_{i}" if obj.get("name") else new_id,
-                    execution_domain=obj.get("executionDomain"),
-                    memory_budget=sum(m.get("sizeKB") for m in obj.get("memory", [])),
-                    notes=obj.get("notes", "")
+                    name=f"{obj.name}_{i}" if obj.name else new_id,
+                    execution_domain=obj.execution_domain,
+                    memory_budget=obj.memory_budget,
+                    notes=obj.notes
                 )
                 duplicates.append(dup)
 
             elif obj_type == PlatformObjectType.CORE:
                 dup = Core(
                     id=new_id,
-                    name=f"{obj.name}_{i}" if obj.get("name") else new_id,
-                    cluster_id=cluster_id if cluster_id is not None else obj.get("clusterId"),
-                    execution_domain=obj.get("executionDomain"),
-                    wcet_scale=obj.get("wcetScale"),
-                    memory_budget=obj.get("localMemoryKB"),
-                    supported_task_types=obj.get("supportedTaskTypes", []),
+                    name=f"{obj.name}_{i}" if obj.name else new_id,
+                    cluster_id=cluster_id if cluster_id is not None else obj.cluster_id,
+                    execution_domain=obj.execution_domain,
+                    wcet_scale=obj.wcet_scale,
+                    memory_budget=obj.memory_budget,
+                    supported_task_types=obj.supported_task_types,
                 )
                 duplicates.append(dup)
             else:
