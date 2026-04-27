@@ -88,8 +88,8 @@ class GaModel:
             "starts": starts,
             "finishes": finishes,
             "cmax": c_max,
-            "core_overflow": core_overflows,
-            "cluster_overflow": cluster_overflows,
+            "core_overflows": core_overflows,
+            "cluster_overflows": cluster_overflows,
             "comm_cost": comm_cost,
             "total_cost": total_cost,
         }

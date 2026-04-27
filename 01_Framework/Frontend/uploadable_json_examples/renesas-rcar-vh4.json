@@ -7,7 +7,7 @@
       "interClusterWeight": 15,
       "interAppWeight": 100
     },
-    "memoryPenaltyScaling": {
+    "memoryPenaltyScale": {
       "coreOverflowScale": 1,
       "clusterOverflowScale": 2
     }

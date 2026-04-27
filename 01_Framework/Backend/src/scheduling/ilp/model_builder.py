@@ -21,14 +21,18 @@ def build_model(problem: ProblemInstance):
         cluster_to_cores[c.cluster_id].append(c.id)
 
     # Big M is the sum of all
-    big_m = sum(t.duration for t in problem.tasks) + max((t.min_start for t in problem.tasks),
-                                                         default=0) + 1
+    big_m = (
+            max((t.min_start for t in problem.tasks), default=0)
+            + sum(
+                max(t.duration * cores[c].wcet_scale for c in t.eligible_cores) for t in problem.tasks)
+                + 1
+    )
 
     # Decision Variables
     x = pulp.LpVariable.dicts("allocs", (task_ids, core_ids), cat="Binary")
-    s = pulp.LpVariable.dicts("start", task_ids, lowBound=0, cat="Continuous")
-    f = pulp.LpVariable.dicts("finish", task_ids, lowBound=0, cat="Continuous")
-    cmax = pulp.LpVariable("c_max", lowBound=0, cat="Continuous")
+    s = pulp.LpVariable.dicts("start", task_ids, lowBound=0, upBound=big_m, cat="Continuous")
+    f = pulp.LpVariable.dicts("finish", task_ids, lowBound=0, upBound=big_m, cat="Continuous")
+    cmax = pulp.LpVariable("c_max", lowBound=0, upBound=big_m, cat="Continuous")
 
     core_overflow = pulp.LpVariable.dicts("core_overflow", core_ids, lowBound=0, cat="Continuous")
     cluster_overflow = pulp.LpVariable.dicts("cluster_overflow", cluster_ids, lowBound=0,
@@ -119,8 +123,8 @@ def build_model(problem: ProblemInstance):
     z = {}
 
     for i, j in comm_task_pairs:
-        for c1 in core_ids:
-            for c2 in core_ids:
+        for c1 in tasks[i].eligible_cores:
+            for c2 in tasks[j].eligible_cores:
                 z[i, j, c1, c2] = pulp.LpVariable(f"z_{i}_{j}_{c1}_{c2}", cat="Binary")
 
                 # z[i,j,c1,c2] = 1 iff x[i][c1] and x[j][c2] = 1

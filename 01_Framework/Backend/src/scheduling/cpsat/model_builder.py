@@ -255,7 +255,7 @@ def build_model_cpsat(problem: ProblemInstance):
         "s_local": s_local,
         "f_local": f_local,
         "intervals": intervals,
-        "core_overflow": core_overflow,
-        "cluster_overflow": cluster_overflow,
+        "core_overflows": core_overflow,
+        "cluster_overflows": cluster_overflow,
         "z": z,
     }

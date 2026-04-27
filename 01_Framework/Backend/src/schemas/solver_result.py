@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Dict
 
 
@@ -19,5 +19,5 @@ class SolverResult:
     cluster_overflows: Dict[str, Optional[int]]
 
     raw_status: Optional[object]
-    runtime_seconds: Optional[float]
-    metadata: Optional[dict]
+    runtime_seconds: float
+    metadata: Optional[dict] = field(default_factory=dict)

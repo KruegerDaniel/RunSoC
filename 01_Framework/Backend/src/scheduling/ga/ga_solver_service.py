@@ -34,7 +34,7 @@ class GASolverService(BaseSolver):
         start = timer()
         decoded = model.solve(self.ga_properties)
         end = timer()
-        decoded["runtime"] = end - start
+        decoded["runtime_seconds"] = end - start
         normalized_result = self._to_normalized_result(problem, decoded)
 
         return build_solution_response(problem, normalized_result)
@@ -50,16 +50,17 @@ class GASolverService(BaseSolver):
 
         return SolverResult(
             solver="GA",
-            status="FEASIBLE",  # GA does not guarantee optimality
+            status="FEASIBLE",
             feasible=True,
             objective=decoded["total_cost"],
             makespan=decoded["cmax"],
             assignment=assignment,
             starts=starts,
             finishes=finishes,
-            core_overflow=decoded["core_overflow"],
-            cluster_overflow=decoded["cluster_overflow"],
-            runtime_seconds=decoded["runtime"],
+            core_overflows=decoded["core_overflows"],
+            cluster_overflows=decoded["cluster_overflows"],
+            raw_status=1,
+            runtime_seconds=decoded["runtime_seconds"],
             metadata={
                 "fitness": decoded.get("fitness"),
                 "comm_cost": decoded.get("comm_cost"),

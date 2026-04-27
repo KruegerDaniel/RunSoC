@@ -7,6 +7,7 @@ from scheduling.extractor import build_solution_response
 from scheduling.ilp.model_builder import build_model
 from schemas.schemas import ProblemInstance
 from schemas.solver_result import SolverResult
+from utils.numerical_util import clean_num
 
 
 class IlpSolverService(BaseSolver):
@@ -22,41 +23,36 @@ class IlpSolverService(BaseSolver):
         solver = pulp.PULP_CBC_CMD(
             msg=True,
             keepFiles=self.keep_files,
-            logPath="cbc.log",
+            logPath="cbc.log" if self.keep_files else None,
             timeLimit=self.time_limit_seconds,
         )
         start = timer()
-        status = model.solve(solver)
+        status_code = model.solve(solver)
         end = timer()
 
-        normalized_result = self._to_normalized_result(problem, model, variables, status, {
-            "runtime_seconds": end - start,
-        })
+        normalized_result = self._to_normalized_result(
+            model=model,
+            vars_dict=variables,
+            status_code=status_code,
+            problem_instance=problem,
+            metadata={
+                "runtime_seconds": end - start,
+            }
+        )
 
         return build_solution_response(problem, normalized_result)
-
-    @staticmethod
-    def _value(value, digits: int = 6):
-        raw = pulp.value(value)
-        if raw is None:
-            return None
-
-        rounded = round(float(raw), digits)
-
-        if abs(rounded - round(rounded)) < 10 ** (-digits):
-            return int(round(rounded))
-
-        return rounded
 
     @classmethod
     def _to_normalized_result(
             cls,
-            problem_instance: ProblemInstance,
             model,
-            variables: dict,
             status_code: int,
-            metadata: dict,
+            vars_dict: dict,
+            problem_instance: ProblemInstance,
+            metadata=None,
     ) -> SolverResult:
+        if metadata is None:
+            metadata = {}
         status = pulp.LpStatus[status_code]
         feasible = status in {"Optimal", "Feasible"}
 
@@ -73,36 +69,41 @@ class IlpSolverService(BaseSolver):
                 core_overflows={},
                 cluster_overflows={},
                 raw_status=status_code,
-                runtime_seconds=metadata.get("runtime_seconds"),
+                runtime_seconds=metadata.get("runtime_seconds", 0),
             )
-        x = variables["x"]
+        x = vars_dict["x"]
+        s = vars_dict["s"]
+        f = vars_dict["f"]
 
         assignment = {}
         for task in problem_instance.tasks:
             assigned_core = next(
                 (core_id
                  for core_id in task.eligible_cores
-                 if cls._value(x[task.id][core_id]) == 1
+                 if cls._solved_binary(x[task.id][core_id])
                  ),
                 None,
             )
             assignment[task.id] = assigned_core
 
         starts = {
-            task.id: cls._value(variables["s"][task.id]) for task in problem_instance.tasks
+            task.id: cls._solved_number(s[task.id])
+            for task in problem_instance.tasks
         }
         finishes = {
-            task.id: cls._value(variables["f"][task.id]) for task in problem_instance.tasks
+            task.id: cls._solved_number(f[task.id])
+            for task in problem_instance.tasks
         }
 
-        core_overflow = {
-
-            core.id: cls._value(variables["core_overflow"][core.id]) or 0
+        raw_core_overflows = vars_dict["core_overflow"]
+        core_overflows = {
+            core.id: cls._solved_number(raw_core_overflows[core.id], default=0)
             for core in problem_instance.cores
         }
 
-        cluster_overflow = {
-            cluster.id: cls._value(variables["cluster_overflow"][cluster.id]) or 0
+        raw_cluster_overflows = vars_dict["cluster_overflow"]
+        cluster_overflows = {
+            cluster.id: cls._solved_number(raw_cluster_overflows[cluster.id], default=0)
             for cluster in problem_instance.clusters
         }
 
@@ -110,14 +111,28 @@ class IlpSolverService(BaseSolver):
             solver=cls.name,
             status=status,
             feasible=True,
-            objective=cls._value(model.objective),
-            makespan=cls._value(variables["cmax"]),
+            objective=cls._solved_number(model.objective),
+            makespan=cls._solved_number(vars_dict["cmax"]),
 
             assignment=assignment,
             starts=starts,
             finishes=finishes,
-            core_overflows=core_overflow,
-            cluster_overflows=cluster_overflow,
+            core_overflows=core_overflows,
+            cluster_overflows=cluster_overflows,
             raw_status=status_code,
             runtime_seconds=metadata.get("runtime_seconds"),
         )
+
+    @staticmethod
+    def _solved_number(expr, digits: int = 6, default=None):
+        value = pulp.value(expr)
+
+        if value is None:
+            return default
+
+        return clean_num(value, digits)
+
+    @staticmethod
+    def _solved_binary(var, tol: float = 1e-6) -> bool:
+        value = pulp.value(var)
+        return value is not None and value >= 1 - tol

@@ -45,7 +45,7 @@ def build_solution_response(
         if assigned_core is not None:
             core = cores_by_id[assigned_core]
             assigned_cluster = core.cluster_id
-            duration_on_core = _clean_num(task.duration * core.wcet_scale)
+            duration_on_core = clean_num(task.duration * core.wcet_scale)
 
         predecessors = pred_map.get(task.id, [])
 
@@ -93,7 +93,7 @@ def build_solution_response(
         )
 
         used = sum(tasks_by_id[task_id].memory for task_id in assigned_tasks)
-        overflow = result.core_overflow.get(core.id, 0)
+        overflow = result.core_overflows.get(core.id, 0)
 
         core_memory.append(
             {
@@ -121,7 +121,7 @@ def build_solution_response(
         )
 
         used = sum(tasks_by_id[task_id].memory for task_id in assigned_tasks)
-        overflow = result.cluster_overflow.get(cluster.id, 0)
+        overflow = result.cluster_overflows.get(cluster.id, 0)
 
         cluster_memory.append(
             {
@@ -152,5 +152,6 @@ def build_solution_response(
             "cluster_memory": cluster_memory,
         },
         "schedule": schedule,
+        "runtime_seconds": round(result.runtime_seconds, 4),
         "metadata": result.metadata or {},
     }
