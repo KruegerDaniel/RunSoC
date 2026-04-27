@@ -1,10 +1,9 @@
-import time
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
 import pygad
 
-from schemas.schemas import ProblemInstance, Task, Core, Dependency, CommunicationPath
+from schemas.schemas import ProblemInstance
 
 
 class GaModel:
@@ -18,6 +17,9 @@ class GaModel:
         self.core_ids = [c.id for c in problem_instance.cores]
         self.task_index: Dict[str, int] = {tid: i for i, tid in enumerate(self.task_ids)}
 
+        self.clusters = {cl.id: cl for cl in problem_instance.clusters}
+        self.cluster_ids = [cl.id for cl in problem_instance.clusters]
+
         self.eligible_core_list: List[List[str]] = [
             self.tasks[tid].eligible_cores[:] for tid in self.task_ids
         ]
@@ -28,7 +30,7 @@ class GaModel:
             self.predecessors[dep.successor].append(dep.predecessor)
             self.successors[dep.predecessor].append(dep.successor)
 
-        self.communications = problem_instance.communications
+        self.communications_path = problem_instance.communication_paths
 
         self.num_genes = 2 * len(self.tasks)
         # Defining gene space
@@ -56,7 +58,10 @@ class GaModel:
         best_solution, best_fitness, _ = ga.best_solution()
         decoded = self.decode_solution(best_solution)
         decoded["fitness"] = best_fitness
-        decoded["ga"] = ga
+        decoded["ga_metadata"] = {
+            "generations_completed": ga.generations_completed,
+
+        }
         return decoded
 
     def decode_solution(self, solution):
@@ -66,12 +71,14 @@ class GaModel:
         starts, finishes = self._build_schedule(assignment_list, priority_list)
 
         c_max = max(finishes.values()) if finishes else 0
-        overflow = self._calculate_mem(assignment_list)
+        core_overflows, cluster_overflows = self._calculate_mem(assignment_list)
         comm_cost = self._calculate_comm_cost(assignment_list)
 
+        weight_scalars = self.problem_instance.memory_penalty_scale
         total_cost = (
                 c_max
-                + self.problem_instance.memory_penalty_weight * sum(overflow.values())
+                + weight_scalars.get("core_overflow_scale", 1) * sum(core_overflows.values())
+                + weight_scalars.get("cluster_overflow_scale", 1) * sum(cluster_overflows.values())
                 + comm_cost
         )
 
@@ -81,7 +88,8 @@ class GaModel:
             "starts": starts,
             "finishes": finishes,
             "cmax": c_max,
-            "mem_overflow": overflow,
+            "core_overflow": core_overflows,
+            "cluster_overflow": cluster_overflows,
             "comm_cost": comm_cost,
             "total_cost": total_cost,
         }
@@ -152,7 +160,7 @@ class GaModel:
             self,
             assignment: Dict[str, str],
             priority_order: List[str]
-    ) -> Tuple[Dict[str, int], Dict[str, int]]:
+    ) -> Tuple[Dict[str, float], Dict[str, float]]:
         """
         Scheduling decoder
         """
@@ -179,9 +187,10 @@ class GaModel:
             pred_finish = 0
             if self.predecessors.get(tid):
                 pred_finish = max(finishes[p] for p in self.predecessors[tid])
-
-            start = max(core_available[assigned_core], pred_finish)
-            finish = start + self.tasks[tid].duration
+            min_start = getattr(self.tasks[tid], "min_start", 0)
+            start = max(core_available[assigned_core], pred_finish, min_start)
+            wcet_scale = getattr(self.cores[assigned_core], "wcet_scale", 1.0)
+            finish = start + self.tasks[tid].duration * wcet_scale
 
             starts[tid] = start
             finishes[tid] = finish
@@ -192,108 +201,136 @@ class GaModel:
 
     # COST METHODS
     ##########################################################################
-    def _calculate_mem(self, assignment: Dict[str, str]) -> Dict[str, float]:
+    def _calculate_mem(self, assignment: Dict[str, str]) -> Tuple[
+        Dict[str, float], Dict[str, float]]:
         mem_by_core = {cid: 0 for cid in self.core_ids}
+        mem_by_cluster = {clid: 0 for clid in self.cluster_ids}
         for tid, cid in assignment.items():
             mem_by_core[cid] += self.tasks[tid].memory
+            clid = self.cores[cid].cluster_id
+            mem_by_cluster[clid] += self.tasks[tid].memory
 
-        overflow = {}
+        core_overflow = {}
+        cluster_overflow = {}
         for cid in self.core_ids:
-            overflow[cid] = max(0.0, mem_by_core[cid] - self.cores[cid].memory_budget)
-        return overflow
+            core_overflow[cid] = max(0.0, mem_by_core[cid] - self.cores[cid].memory_budget)
+
+        for clid in self.cluster_ids:
+            cluster_overflow[clid] = max(0.0,
+                                         mem_by_cluster[clid] - self.clusters[clid].memory_budget)
+
+        return core_overflow, cluster_overflow
 
     def _calculate_comm_cost(self, assignment: Dict[str, str]) -> float:
+        explicit_path_penalty = {
+            (comm.source, comm.target): comm.penalty for comm in self.communications_path
+        }
+        comm_penalty_weight = self.problem_instance.comms_penalty_weight
+        intra_core_weight = comm_penalty_weight.get("intra_core_weight", 0)
+        inter_core_weight = comm_penalty_weight.get("inter_core_weight", 0)
+        inter_cluster_weight = comm_penalty_weight.get("inter_cluster_weight", 0)
+
         total = 0.0
-        for comm in self.communications:
-            if assignment[comm.source] != assignment[comm.target]:
-                total += comm.latency
+
+        for dep in self.problem_instance.dependencies:
+            i, j = dep.predecessor, dep.successor
+            core_i, core_j = assignment[i], assignment[j]
+            if (core_i, core_j) in explicit_path_penalty:
+                total += explicit_path_penalty[(core_i, core_j)]
+            elif core_i == core_j:
+                total += intra_core_weight
+            elif self.cores[core_i].cluster_id == self.cores[core_j].cluster_id:
+                total += inter_core_weight
+            else:
+                total += inter_cluster_weight
 
         return total
 
-if __name__ == "main":
-    problem = ProblemInstance(
-        tasks=[
-            Task(id="A", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="B", duration=2, memory=5, eligible_cores=["0", "1"]),
-            Task(id="C", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="D", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="E", duration=2, memory=5, eligible_cores=["0", "1"]),
-            Task(id="F", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="A2", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="B2", duration=2, memory=5, eligible_cores=["0", "1"]),
-            Task(id="C2", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="D2", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="E2", duration=2, memory=5, eligible_cores=["0", "1"]),
-            Task(id="F2", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="A3", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="B3", duration=2, memory=5, eligible_cores=["0", "1"]),
-            Task(id="C3", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="D3", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="E3", duration=2, memory=5, eligible_cores=["0", "1"]),
-            Task(id="F3", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="A4", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="B4", duration=2, memory=5, eligible_cores=["0", "1"]),
-            Task(id="C4", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="D4", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-            Task(id="E4", duration=2, memory=5, eligible_cores=["0", "1"]),
-            Task(id="F4", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-        ],
-        cores=[
-            Core(id="0", memory_budget=30),
-            Core(id="1", memory_budget=30),
-            Core(id="2", memory_budget=30),
-            Core(id="3", memory_budget=30),
-        ],
-        dependencies=[
-            Dependency(predecessor="A", successor="C"),
-            Dependency(predecessor="A", successor="B"),
-            Dependency(predecessor="C", successor="E"),
-            Dependency(predecessor="E", successor="F"),
-            Dependency(predecessor="A2", successor="C2"),
-            Dependency(predecessor="A2", successor="B2"),
-            Dependency(predecessor="C2", successor="E2"),
-            Dependency(predecessor="E2", successor="F2"),
-        ],
-        communications=[
-            CommunicationPath(source="A", target="C", latency=2),
-            CommunicationPath(source="A", target="B", latency=4),
-            CommunicationPath(source="C", target="E", latency=2),
-            CommunicationPath(source="E", target="F", latency=4),
-            CommunicationPath(source="A2", target="C2", latency=2),
-            CommunicationPath(source="A2", target="B2", latency=4),
-            CommunicationPath(source="C2", target="E2", latency=2),
-            CommunicationPath(source="E2", target="F2", latency=4),
-        ],
-        memory_penalty_weight=10.0,
-    )
-
-    start = time.perf_counter()
-    solver = GaModel(problem)
-    result = solver.solve(
-        {
-            "num_generations": 2000,
-            "num_parents_mating": 20,
-            "sol_per_pop": 80,
-            "parent_selection_type": "tournament",
-            "keep_parents": 1,
-            "crossover_type": "single_point",
-            "K_tournament":3,
-            "mutation_type": "random",
-            "mutation_percent_genes": 10,
-            "random_seed": 42
-        }
-
-    )
-
-    finish = time.perf_counter()
-
-    print(f"\n Completed in {finish-start:0.4f} seconds")
-    print("Best schedule:")
-    print("Assignment:", result["assignment"])
-    print("Priority order:", result["priority_order"])
-    print("Starts:", result["starts"])
-    print("Finishes:", result["finishes"])
-    print("Makespan:", result["cmax"])
-    print("Overflow:", result["mem_overflow"])
-    print("Comm cost:", result["comm_cost"])
-    print("Total cost:", result["total_cost"])
+#
+# if __name__ == "__main__":
+#     problem = ProblemInstance(
+#         tasks=[
+#             Task(id="A", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="B", duration=2, memory=5, eligible_cores=["0", "1"]),
+#             Task(id="C", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="D", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="E", duration=2, memory=5, eligible_cores=["0", "1"]),
+#             Task(id="F", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="A2", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="B2", duration=2, memory=5, eligible_cores=["0", "1"]),
+#             Task(id="C2", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="D2", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="E2", duration=2, memory=5, eligible_cores=["0", "1"]),
+#             Task(id="F2", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="A3", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="B3", duration=2, memory=5, eligible_cores=["0", "1"]),
+#             Task(id="C3", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="D3", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="E3", duration=2, memory=5, eligible_cores=["0", "1"]),
+#             Task(id="F3", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="A4", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="B4", duration=2, memory=5, eligible_cores=["0", "1"]),
+#             Task(id="C4", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="D4", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
+#             Task(id="E4", duration=2, memory=5, eligible_cores=["0", "1"]),
+#             Task(id="F4", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
+#         ],
+#         cores=[
+#             Core(id="0", memory_budget=30),
+#             Core(id="1", memory_budget=30),
+#             Core(id="2", memory_budget=30),
+#             Core(id="3", memory_budget=30),
+#         ],
+#         dependencies=[
+#             Dependency(predecessor="A", successor="C"),
+#             Dependency(predecessor="A", successor="B"),
+#             Dependency(predecessor="C", successor="E"),
+#             Dependency(predecessor="E", successor="F"),
+#             Dependency(predecessor="A2", successor="C2"),
+#             Dependency(predecessor="A2", successor="B2"),
+#             Dependency(predecessor="C2", successor="E2"),
+#             Dependency(predecessor="E2", successor="F2"),
+#         ],
+#         communications=[
+#             CommunicationPath(source="A", target="C", latency=2),
+#             CommunicationPath(source="A", target="B", latency=4),
+#             CommunicationPath(source="C", target="E", latency=2),
+#             CommunicationPath(source="E", target="F", latency=4),
+#             CommunicationPath(source="A2", target="C2", latency=2),
+#             CommunicationPath(source="A2", target="B2", latency=4),
+#             CommunicationPath(source="C2", target="E2", latency=2),
+#             CommunicationPath(source="E2", target="F2", latency=4),
+#         ],
+#         memory_penalty_weight=10.0,
+#     )
+#
+#     start = time.perf_counter()
+#     solver = GaModel(problem)
+#     result = solver.solve(
+#         {
+#             "num_generations": 2000,
+#             "num_parents_mating": 20,
+#             "sol_per_pop": 80,
+#             "parent_selection_type": "tournament",
+#             "keep_parents": 1,
+#             "crossover_type": "single_point",
+#             "K_tournament": 3,
+#             "mutation_type": "random",
+#             "mutation_percent_genes": 10,
+#             "random_seed": 42
+#         }
+#
+#     )
+#
+#     finish = time.perf_counter()
+#
+#     print(f"\n Completed in {finish - start:0.4f} seconds")
+#     print("Best schedule:")
+#     print("Assignment:", result["assignment"])
+#     print("Priority order:", result["priority_order"])
+#     print("Starts:", result["starts"])
+#     print("Finishes:", result["finishes"])
+#     print("Makespan:", result["cmax"])
+#     print("Overflow:", result["mem_overflow"])
+#     print("Comm cost:", result["comm_cost"])
+#     print("Total cost:", result["total_cost"])

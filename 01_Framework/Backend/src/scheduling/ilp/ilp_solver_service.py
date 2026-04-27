@@ -1,188 +1,123 @@
+from timeit import default_timer as timer
+
 import pulp
 
 from scheduling.base_solver import BaseSolver
+from scheduling.extractor import build_solution_response
 from scheduling.ilp.model_builder import build_model
 from schemas.schemas import ProblemInstance
+from schemas.solver_result import SolverResult
 
 
 class IlpSolverService(BaseSolver):
-    name = "ILP"
+    name = "CBC"
 
     def __init__(self):
         self.time_limit_seconds = 100
-        self.keepFiles = False
+        self.keep_files = False
 
     def solve(self, problem: ProblemInstance) -> dict:
         model, variables = build_model(problem)
 
         solver = pulp.PULP_CBC_CMD(
             msg=True,
-            keepFiles=self.keepFiles,
+            keepFiles=self.keep_files,
             logPath="cbc.log",
             timeLimit=self.time_limit_seconds,
         )
+        start = timer()
         status = model.solve(solver)
+        end = timer()
 
-        return self._extract_solution(problem, model, variables, status)
+        normalized_result = self._to_normalized_result(problem, model, variables, status, {
+            "runtime_seconds": end - start,
+        })
+
+        return build_solution_response(problem, normalized_result)
 
     @staticmethod
-    def _extract_solution(problem: ProblemInstance, model, variables, status) -> dict:
-        status_str = pulp.LpStatus.get(status, str(status))
+    def _value(value, digits: int = 6):
+        raw = pulp.value(value)
+        if raw is None:
+            return None
 
-        def num(value, digits: int = 6):
-            raw = pulp.value(value)
-            if raw is None:
-                return None
-            rounded = round(float(raw), digits)
-            if abs(rounded - round(rounded)) < 10 ** (-digits):
-                return int(round(rounded))
-            return rounded
+        rounded = round(float(raw), digits)
 
-        if status_str not in {"Optimal", "Feasible"}:
-            return {
-                "solver": "CBC",
-                "status": status_str,
-                "feasible": False,
-                "objective": None,
-                "makespan": None,
-                "summary": {
-                    "task_count": len(problem.tasks),
-                    "scheduled_task_count": 0,
-                    "dependency_count": len(problem.dependencies),
-                },
-                "resource_usage": {
-                    "core_memory": [],
-                    "cluster_memory": [],
-                },
-                "schedule": [],
-            }
+        if abs(rounded - round(rounded)) < 10 ** (-digits):
+            return int(round(rounded))
 
+        return rounded
+
+    @classmethod
+    def _to_normalized_result(
+            cls,
+            problem_instance: ProblemInstance,
+            model,
+            variables: dict,
+            status_code: int,
+            metadata: dict,
+    ) -> SolverResult:
+        status = pulp.LpStatus[status_code]
+        feasible = status in {"Optimal", "Feasible"}
+
+        if not feasible:
+            return SolverResult(
+                solver=cls.name,
+                status=status,
+                feasible=False,
+                objective=None,
+                makespan=None,
+                assignment={},
+                starts={},
+                finishes={},
+                core_overflows={},
+                cluster_overflows={},
+                raw_status=status_code,
+                runtime_seconds=metadata.get("runtime_seconds"),
+            )
         x = variables["x"]
-        s = variables["s"]
-        f = variables["f"]
-        cmax = variables["cmax"]
-        core_overflow = variables["core_overflow"]
-        cluster_overflow = variables["cluster_overflow"]
 
-        tasks_by_id = {t.id: t for t in problem.tasks}
-        cores_by_id = {c.id: c for c in problem.cores}
-
-        pred_map = {}
-        for dep in problem.dependencies:
-            pred_map.setdefault(dep.successor, []).append(dep.predecessor)
-
-        schedule = []
-        for task in problem.tasks:
+        assignment = {}
+        for task in problem_instance.tasks:
             assigned_core = next(
-                (core_id for core_id in task.eligible_cores if num(x[task.id][core_id]) == 1),
+                (core_id
+                 for core_id in task.eligible_cores
+                 if cls._value(x[task.id][core_id]) == 1
+                 ),
                 None,
             )
+            assignment[task.id] = assigned_core
 
-            start_time = num(s[task.id])
-            finish_time = num(f[task.id])
-
-            predecessors = pred_map.get(task.id, [])
-            eligible_time = 0
-            if predecessors:
-                pred_finishes = [num(f[p]) for p in predecessors]
-                pred_finishes = [v for v in pred_finishes if v is not None]
-                eligible_time = max(pred_finishes, default=0)
-
-            duration_on_core = None
-            assigned_cluster = None
-            if assigned_core is not None:
-                assigned_cluster = cores_by_id[assigned_core].cluster_id
-                duration_on_core = num(
-                    task.duration * cores_by_id[assigned_core].wcet_scale
-                )
-
-            schedule.append(
-                {
-                    "task_id": task.id,
-                    "task_name": task.name,
-                    "task_type": task.task_type,
-                    "assigned_core": assigned_core,
-                    "assigned_cluster": assigned_cluster,
-                    "min_start": task.min_start,
-                    "eligible_time": eligible_time,
-                    "start_time": start_time,
-                    "finish_time": finish_time,
-                    "base_duration": task.duration,
-                    "scheduled_duration": duration_on_core,
-                    "memory": task.memory,
-                    "predecessors": predecessors,
-                }
-            )
-
-        schedule.sort(
-            key=lambda item: (
-                item["start_time"] if item["start_time"] is not None else float("inf"),
-                item["assigned_core"] or "",
-                item["task_id"],
-            )
-        )
-
-        core_memory = []
-        for core in problem.cores:
-            assigned_tasks = [
-                task.id for task in problem.tasks if num(x[task.id][core.id]) == 1
-            ]
-            used = sum(tasks_by_id[task_id].memory for task_id in assigned_tasks)
-            overflow_value = num(core_overflow[core.id]) or 0
-
-            core_memory.append(
-                {
-                    "core_id": core.id,
-                    "core_name": core.name,
-                    "cluster_id": core.cluster_id,
-                    "budget": core.memory_budget,
-                    "used": used,
-                    "overflow": overflow_value,
-                    "assigned_tasks": assigned_tasks,
-                }
-            )
-
-        cluster_memory = []
-        for cluster in problem.clusters:
-            cluster_core_ids = [c.id for c in problem.cores if c.cluster_id == cluster.id]
-            assigned_tasks = sorted(
-                {
-                    task.id
-                    for task in problem.tasks
-                    for core_id in cluster_core_ids
-                    if num(x[task.id][core_id]) == 1
-                }
-            )
-            used = sum(tasks_by_id[task_id].memory for task_id in assigned_tasks)
-            overflow_value = num(cluster_overflow[cluster.id]) or 0
-
-            cluster_memory.append(
-                {
-                    "cluster_id": cluster.id,
-                    "cluster_name": cluster.name,
-                    "budget": cluster.memory_budget,
-                    "used": used,
-                    "overflow": overflow_value,
-                    "assigned_tasks": assigned_tasks,
-                }
-            )
-
-        return {
-            "solver": "CBC",
-            "status": status_str,
-            "feasible": True,
-            "objective": num(model.objective),
-            "makespan": num(cmax),
-            "summary": {
-                "task_count": len(problem.tasks),
-                "scheduled_task_count": len(schedule),
-                "dependency_count": len(problem.dependencies),
-                "core_count": len(problem.cores),
-                "cluster_count": len(problem.clusters),
-            },
-            "resource_usage": {
-                "core_memory": core_memory,
-                "cluster_memory": cluster_memory,
-            },
-            "schedule": schedule,
+        starts = {
+            task.id: cls._value(variables["s"][task.id]) for task in problem_instance.tasks
         }
+        finishes = {
+            task.id: cls._value(variables["f"][task.id]) for task in problem_instance.tasks
+        }
+
+        core_overflow = {
+
+            core.id: cls._value(variables["core_overflow"][core.id]) or 0
+            for core in problem_instance.cores
+        }
+
+        cluster_overflow = {
+            cluster.id: cls._value(variables["cluster_overflow"][cluster.id]) or 0
+            for cluster in problem_instance.clusters
+        }
+
+        return SolverResult(
+            solver=cls.name,
+            status=status,
+            feasible=True,
+            objective=cls._value(model.objective),
+            makespan=cls._value(variables["cmax"]),
+
+            assignment=assignment,
+            starts=starts,
+            finishes=finishes,
+            core_overflows=core_overflow,
+            cluster_overflows=cluster_overflow,
+            raw_status=status_code,
+            runtime_seconds=metadata.get("runtime_seconds"),
+        )

@@ -28,7 +28,8 @@ class CpSolverService(BaseSolver):
         elif status == cp_model.INFEASIBLE:
             return {"status": "INFEASIBLE", "message": "The problem has no mathematical solution."}
         else:
-            return {"status": "UNKNOWN", "message": "Solver timed out before finding a feasible solution."}
+            return {"status": "UNKNOWN",
+                    "message": "Solver timed out before finding a feasible solution."}
 
     def _extract_solution(self, solver: cp_model.CpSolver, status: int, vars_dict: dict,
                           problem: "ProblemInstance") -> dict:
@@ -36,7 +37,8 @@ class CpSolverService(BaseSolver):
         s = vars_dict["s"]
         f = vars_dict["f"]
         cmax = vars_dict["cmax"]
-        overflows = vars_dict["overflows"]
+        core_overflows = vars_dict["core_overflows"]
+        cluster_overflows = vars_dict["cluster_overflows"]
 
         schedule = []
         for t in problem.tasks:
@@ -61,12 +63,13 @@ class CpSolverService(BaseSolver):
 
         core_overflows = {}
         for idx, core in enumerate(problem.cores):
-            core_overflows[core.id] = solver.Value(overflows[idx])
+            core_overflows[core.id] = solver.Value(core_overflows[idx])
 
         return {
             "status": solver.StatusName(status),  # "OPTIMAL" or "FEASIBLE"
             "objective_value": solver.ObjectiveValue(),
             "makespan": solver.Value(cmax),
             "core_overflows": core_overflows,
-            "tasks": sorted(schedule, key=lambda i: i["start_time"])  # Sort by start time for readability
+            "tasks": sorted(schedule, key=lambda i: i["start_time"])
+            # Sort by start time for readability
         }
