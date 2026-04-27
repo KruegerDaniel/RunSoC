@@ -202,7 +202,7 @@ class ProblemInstanceMapper:
                 duration=t.get("wcet"),
                 period=t.get("period", 0),
                 memory=t.get("memoryUsageKB"),
-                eligible_cores=t.get("eligibleCores", [])
+                eligible_cores=list(t.get("eligibleCores", []))
             )
             tasks.append(task)
             task_dict[task.id] = task
@@ -242,7 +242,7 @@ class ProblemInstanceMapper:
                         period=curr_task.period,
                         min_start=curr_task.period, # Since min_start = 0 + 1 * prev_task.period
                         memory=curr_task.memory,
-                        eligible_cores=curr_task.eligible_cores,
+                        eligible_cores=list(curr_task.eligible_cores),
                     )
 
                 for succ in adj_list[curr_id]:
@@ -262,14 +262,18 @@ class ProblemInstanceMapper:
         return tasks, dependencies
 
     def _map_task_to_domain_core(self, tasks: list[Task], cores: list[Core]) -> list[Task]:
-
         core_domain_map = defaultdict(list)
         for c in cores:
             core_domain_map[c.execution_domain].append(c.id)
 
         for t in tasks:
-            t_domain = t.required_domain
-            t.eligible_cores.extend(core_domain_map.get(t_domain, []))
+            domain_cores = core_domain_map.get(t.required_domain, [])
+
+            # avoid duplicates
+            t.eligible_cores = list(dict.fromkeys([
+                *t.eligible_cores,
+                *domain_cores,
+            ]))
 
         return tasks
 
