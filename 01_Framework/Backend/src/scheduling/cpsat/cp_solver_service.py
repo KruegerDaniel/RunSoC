@@ -1,8 +1,12 @@
+from timeit import default_timer as timer
+
 from ortools.sat.python import cp_model
 
 from schemas.schemas import ProblemInstance
+from schemas.solver_result import SolverResult
 from .model_builder import build_model_cpsat
 from ..base_solver import BaseSolver
+from ..extractor import build_solution_response
 
 
 class CpSolverService(BaseSolver):
@@ -20,53 +24,111 @@ class CpSolverService(BaseSolver):
         solver.parameters.num_search_workers = self.num_workers
 
         # solver.parameters.log_search_progress = True
+        start = timer()
+        status_code = solver.Solve(model)
+        end = timer()
 
-        status = solver.Solve(model)
+        normalized_result = self._to_normalized_result(
+            solver=solver,
+            status_code=status_code,
+            vars_dict=vars_dict,
+            problem_instance=problem,
+            metadata={"runtime_seconds": end - start},
+        )
 
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            return self._extract_solution(solver, status, vars_dict, problem)
-        elif status == cp_model.INFEASIBLE:
-            return {"status": "INFEASIBLE", "message": "The problem has no mathematical solution."}
-        else:
-            return {"status": "UNKNOWN", "message": "Solver timed out before finding a feasible solution."}
+        return build_solution_response(problem, normalized_result)
 
-    def _extract_solution(self, solver: cp_model.CpSolver, status: int, vars_dict: dict,
-                          problem: "ProblemInstance") -> dict:
+    @classmethod
+    def _to_normalized_result(
+            cls,
+            solver: cp_model.CpSolver,
+            status_code,
+            vars_dict: dict,
+            problem_instance: ProblemInstance,
+            metadata: dict = None,
+    ) -> SolverResult:
+        status = solver.status_name(status_code)
+        feasible = status_code in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+
+        time_scale = vars_dict["time_scale"]
+
+        if not feasible:
+            return SolverResult(
+                solver=cls.name,
+                status=status,
+                feasible=False,
+                objective=None,
+                makespan=None,
+                assignment={},
+                starts={},
+                finishes={},
+                core_overflows={},
+                cluster_overflows={},
+                raw_status=status_code,
+                runtime_seconds=metadata.get("runtime_seconds", 0),
+                metadata={
+                    "time_scale": time_scale
+                }
+            )
+
         x = vars_dict["x"]
         s = vars_dict["s"]
         f = vars_dict["f"]
-        cmax = vars_dict["cmax"]
-        overflows = vars_dict["overflows"]
 
-        schedule = []
-        for t in problem.tasks:
-            task_id = t.id
-            assigned_core = None
+        assignment = {}
 
-            for c in t.eligible_cores:
-                if solver.BooleanValue(x[task_id, c]):
-                    assigned_core = c
-                    break
+        for task in problem_instance.tasks:
+            assigned_core = next(
+                (
+                    core_id
+                    for core_id in task.eligible_cores
+                    if (task.id, core_id) in x and solver.BooleanValue(x[task.id, core_id])
+                ),
+                None,
+            )
 
-            start_time = solver.Value(s[task_id])
-            finish_time = solver.Value(f[task_id])
+            assignment[task.id] = assigned_core
 
-            schedule.append({
-                "task_id": task_id,
-                "core_id": assigned_core,
-                "start_time": start_time,
-                "finish_time": finish_time,
-                "duration": finish_time - start_time
-            })
-
-        core_overflows = {}
-        for idx, core in enumerate(problem.cores):
-            core_overflows[core.id] = solver.Value(overflows[idx])
-
-        return {
-            "status": solver.StatusName(status),  # "OPTIMAL" or "FEASIBLE"
-            "objective_value": solver.ObjectiveValue(),
-            "makespan": solver.Value(cmax),
-            "core_overflows": core_overflows,
-            "tasks": sorted(schedule, key=lambda i: i["start_time"])  # Sort by start time for readability
+        starts = {
+            task.id: solver.Value(s[task.id]) / time_scale
+            for task in problem_instance.tasks
         }
+
+        finishes = {
+            task.id: solver.Value(f[task.id]) / time_scale
+            for task in problem_instance.tasks
+        }
+
+        core_overflows = {
+            core.id: solver.Value(vars_dict["core_overflows"][core.id])
+            for core in problem_instance.cores
+        }
+
+        cluster_overflows = {
+            cluster.id: solver.Value(vars_dict["cluster_overflows"][cluster.id])
+            for cluster in problem_instance.clusters
+        }
+
+        makespan = solver.Value(vars_dict["cmax"]) / time_scale
+
+        return SolverResult(
+            solver=cls.name,
+            status=status,
+            feasible=True,
+            objective=solver.ObjectiveValue(),
+            makespan=makespan,
+            assignment=assignment,
+            starts=starts,
+            finishes=finishes,
+            core_overflows=core_overflows,
+            cluster_overflows=cluster_overflows,
+            raw_status=status_code,
+            runtime_seconds=metadata.get("runtime_seconds", 0),
+            metadata={
+                "time_scale": time_scale,
+                "best_objective_bound": solver.BestObjectiveBound(),
+                "wall_time": solver.WallTime(),
+                "num_conflicts": solver.NumConflicts(),
+                "num_branches": solver.NumBranches(),
+            },
+        )
