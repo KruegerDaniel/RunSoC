@@ -1,0 +1,313 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{mathtools}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\title{Formal ILP Formulation for RunSoC 2.0}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Problem Definition}
+
+This document formalizes the integer linear programming (ILP) model used for assigning and scheduling a set of tasks on a heterogeneous multi-core platform. 
+The model minimizes a weighted objective consisting of the schedule makespan, memory-budget overflow penalties, and communication penalties between dependent tasks.
+
+\section{Sets}
+
+\begin{align*}
+T &:= \text{set of tasks},\\
+C &:= \text{set of cores},\\
+K &:= \text{set of clusters},\\
+D &\subseteq T \times T := \text{set of precedence dependencies},\\
+E_i &\subseteq C := \text{set of eligible cores for task } i \in T,\\
+C_k &:= \{c \in C \mid c \text{ belongs to cluster } k\}, \quad k \in K.
+\end{align*}
+
+A dependency $(i,j) \in D$ means that task $i$ must finish before task $j$ may start.
+
+\section{Parameters}
+
+For each task $i \in T$:
+\begin{align*}
+r_i &:= \text{minimum start time of task } i,\\
+p_i &:= \text{base processing duration of task } i,\\
+m_i &:= \text{memory demand of task } i.
+\end{align*}
+
+For each core $c \in C$:
+\begin{align*}
+\alpha_c &:= \text{WCET scaling factor of core } c,\\
+B_c^{\mathrm{core}} &:= \text{memory budget of core } c.
+\end{align*}
+
+For each cluster $k \in K$:
+\begin{align*}
+B_k^{\mathrm{cluster}} &:= \text{memory budget of cluster } k.
+\end{align*}
+
+Let $\kappa(c) \in K$ denote the cluster containing core $c$.
+
+The processing time of task $i$ on core $c$ is
+\begin{equation}
+p_{ic} := p_i \alpha_c.
+\end{equation}
+
+The model uses a sufficiently large constant $M$. 
+
+In the implementation, the maximal achievable horizon is used:
+\begin{equation}
+M =
+\max_{i \in T} r_i
++
+\sum_{i \in T}
+\max_{c \in E_i} p_i \alpha_c
++ 1.
+\end{equation}
+
+Memory-overflow penalty weights are denoted by
+\begin{align*}
+\lambda_{\mathrm{core}} &:= \text{penalty weight for core-memory overflow},\\
+\lambda_{\mathrm{cluster}} &:= \text{penalty weight for cluster-memory overflow}.
+\end{align*}
+
+Communication penalty weights are denoted by
+\begin{align*}
+w_{\mathrm{intra}} &:= \text{penalty for communication on the same core},\\
+w_{\mathrm{intercore}} &:= \text{penalty for communication between different cores in the same cluster},\\
+w_{\mathrm{intercluster}} &:= \text{penalty for communication between cores in different clusters}.
+\end{align*}
+
+For an explicitly defined communication path $(c,d)$, let
+\begin{equation}
+q_{cd}^{\mathrm{explicit}}
+\end{equation}
+be its specified penalty. The effective communication penalty between cores $c,d \in C$ is
+\begin{equation}
+q_{cd} =
+\begin{cases}
+q_{cd}^{\mathrm{explicit}}, & \text{if an explicit communication path } (c,d) \text{ is defined},\\
+w_{\mathrm{intra}}, & \text{if } c=d,\\
+w_{\mathrm{intercore}}, & \text{if } c \neq d \text{ and } \kappa(c)=\kappa(d),\\
+w_{\mathrm{intercluster}}, & \text{if } \kappa(c)\neq \kappa(d).
+\end{cases}
+\end{equation}
+
+\section{Decision Variables}
+
+\begin{align*}
+x_{ic} &\in \{0,1\}
+&& \forall i \in T,\ c \in C,
+&& \text{equals 1 iff task } i \text{ is assigned to core } c,\\
+s_i &\geq 0
+&& \forall i \in T,
+&& \text{start time of task } i,\\
+f_i &\geq 0
+&& \forall i \in T,
+&& \text{finish time of task } i,\\
+C_{\max} &\geq 0
+&&
+&& \text{schedule makespan},\\
+o_c^{\mathrm{core}} &\geq 0
+&& \forall c \in C,
+&& \text{memory overflow on core } c,\\
+o_k^{\mathrm{cluster}} &\geq 0
+&& \forall k \in K,
+&& \text{memory overflow on cluster } k.
+\end{align*}
+
+For each unordered pair of distinct tasks $\{i,j\}$ with $i<j$:
+\begin{align*}
+y_{ij} &\in \{0,1\}
+&& \forall i,j \in T,\ i<j,
+&& \text{ordering variable used for non-overlap constraints}.
+\end{align*}
+
+For each dependency $(i,j)\in D$ and eligible core pair $c \in E_i$, $d \in E_j$:
+\begin{align*}
+z_{ijcd} &\in \{0,1\}
+&& \forall (i,j)\in D,\ c\in E_i,\ d\in E_j,
+&& \text{equals 1 iff } i \text{ is assigned to } c \text{ and } j \text{ is assigned to } d.
+\end{align*}
+
+\section{Objective Function}
+
+The objective minimizes the makespan, weighted core-memory overflow, weighted cluster-memory overflow, and communication penalties along dependency edges:
+\begin{equation}
+\min
+\quad
+C_{\max}
++
+\lambda_{\mathrm{core}}
+\sum_{c \in C} o_c^{\mathrm{core}}
++
+\lambda_{\mathrm{cluster}}
+\sum_{k \in K} o_k^{\mathrm{cluster}}
++
+\sum_{(i,j)\in D}
+\sum_{c \in E_i}
+\sum_{d \in E_j}
+q_{cd} z_{ijcd}.
+\end{equation}
+
+\section{Constraints}
+
+\subsection{Assignment Constraints}
+
+Each task must be assigned exactly once to one of its eligible cores:
+\begin{equation}
+\sum_{c \in E_i} x_{ic} = 1
+\qquad
+\forall i \in T.
+\end{equation}
+
+Assignments to ineligible cores are forbidden:
+\begin{equation}
+x_{ic}=0
+\qquad
+\forall i \in T,\ \forall c \in C \setminus E_i.
+\end{equation}
+
+\subsection{Timing Constraints}
+
+Each task may not start before its minimum release time:
+\begin{equation}
+s_i \geq r_i
+\qquad
+\forall i \in T.
+\end{equation}
+
+The finish time of each task is determined by its start time and the processing time induced by the selected core:
+\begin{equation}
+f_i
+=
+s_i
++
+\sum_{c \in C} p_i \alpha_c x_{ic}
+\qquad
+\forall i \in T.
+\end{equation}
+
+The makespan must be at least the finish time of every task:
+\begin{equation}
+C_{\max} \geq f_i
+\qquad
+\forall i \in T.
+\end{equation}
+
+\subsection{Precedence Constraints}
+
+For every dependency edge, the successor task may only start after the predecessor task has finished:
+\begin{equation}
+s_j \geq f_i
+\qquad
+\forall (i,j) \in D.
+\end{equation}
+
+\subsection{Memory-Budget Constraints}
+
+Core-level memory use may exceed the core memory budget only through the non-negative overflow variable:
+\begin{equation}
+\sum_{i \in T} m_i x_{ic}
+\leq
+B_c^{\mathrm{core}} + o_c^{\mathrm{core}}
+\qquad
+\forall c \in C.
+\end{equation}
+
+Cluster-level memory use may exceed the cluster memory budget only through the non-negative overflow variable:
+\begin{equation}
+\sum_{i \in T}
+\sum_{c \in C_k}
+m_i x_{ic}
+\leq
+B_k^{\mathrm{cluster}} + o_k^{\mathrm{cluster}}
+\qquad
+\forall k \in K.
+\end{equation}
+
+\subsection{Non-Overlap Constraints on Cores}
+
+For every unordered pair of tasks $i,j \in T$ with $i<j$, and for every core $c \in C$, the model enforces that if both tasks are assigned to the same core, then one must finish before the other starts.
+
+\begin{equation}
+s_j
+\geq
+f_i
+-
+M\left(3 - y_{ij} - x_{ic} - x_{jc}\right)
+\qquad
+\forall i,j \in T,\ i<j,\ \forall c \in C.
+\end{equation}
+
+\begin{equation}
+s_i
+\geq
+f_j
+-
+M\left(2 + y_{ij} - x_{ic} - x_{jc}\right)
+\qquad
+\forall i,j \in T,\ i<j,\ \forall c \in C.
+\end{equation}
+
+If $x_{ic}=x_{jc}=1$, these constraints reduce to:
+\begin{align*}
+s_j &\geq f_i - M(1-y_{ij}),\\
+s_i &\geq f_j - My_{ij}.
+\end{align*}
+
+Thus, $y_{ij}=1$ selects the ordering $i$ before $j$, while $y_{ij}=0$ selects the ordering $j$ before $i$.
+
+\subsection{Communication-Penalty Linearization}
+
+For each dependency $(i,j)\in D$ and each eligible core pair $c\in E_i$, $d\in E_j$, the auxiliary variable $z_{ijcd}$ represents the conjunction
+\[
+z_{ijcd} = x_{ic} x_{jd}.
+\]
+
+This product is linearized using:
+\begin{align}
+z_{ijcd} &\leq x_{ic}
+&& \forall (i,j)\in D,\ c\in E_i,\ d\in E_j,\\
+z_{ijcd} &\leq x_{jd}
+&& \forall (i,j)\in D,\ c\in E_i,\ d\in E_j,\\
+z_{ijcd} &\geq x_{ic} + x_{jd} - 1
+&& \forall (i,j)\in D,\ c\in E_i,\ d\in E_j.
+\end{align}
+
+Since $z_{ijcd}$ is binary, these constraints force $z_{ijcd}=1$ exactly when both $x_{ic}=1$ and $x_{jd}=1$.
+
+\section{Variable Domains}
+
+\begin{align*}
+x_{ic} &\in \{0,1\}
+&& \forall i \in T,\ c \in C,\\
+y_{ij} &\in \{0,1\}
+&& \forall i,j \in T,\ i<j,\\
+z_{ijcd} &\in \{0,1\}
+&& \forall (i,j)\in D,\ c\in E_i,\ d\in E_j,\\
+s_i, f_i &\in [0,M]
+&& \forall i \in T,\\
+C_{\max} &\in [0,M],\\
+o_c^{\mathrm{core}} &\geq 0
+&& \forall c \in C,\\
+o_k^{\mathrm{cluster}} &\geq 0
+&& \forall k \in K.
+\end{align*}
+
+\section{Remarks}
+
+The current implementation models task eligibility through the input set $E_i$ for each task. Hence, constraints related to task type, execution domain, or memory-node accessibility are assumed to be preprocessed into the eligible-core sets and are not explicitly represented as separate ILP constraints.
+
+The communication objective is evaluated only over precedence dependencies. Therefore, a communication penalty is incurred for a task pair $(i,j)$ only if $(i,j) \in D$.
+
+Memory budgets are modeled as soft constraints. Violations are permitted through overflow variables, but are penalized in the objective function. Consequently, the model remains feasible even when strict core-level or cluster-level memory budgets cannot be satisfied.
+
+\end{document}
