@@ -10,8 +10,9 @@ from schemas.solver_result import SolverResult
 class GASolverService(BaseSolver):
     name = "GA"
 
-    def __init__(self, ga_properties: dict | None = None):
+    def __init__(self, ga_properties: dict | None = None, time_limit_seconds: int = 5000):
         self.ga_properties = ga_properties or self._default_ga_properties()
+        self.time_limit_seconds = time_limit_seconds
 
     @staticmethod
     def _default_ga_properties() -> dict:

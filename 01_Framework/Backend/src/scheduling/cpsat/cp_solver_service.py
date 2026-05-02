@@ -12,7 +12,7 @@ from ..extractor import build_solution_response
 class CpSolverService(BaseSolver):
     name = "CPSAT"
 
-    def __init__(self, time_limit_seconds: float = 5000.0, num_workers: int = 8):
+    def __init__(self, time_limit_seconds: int = 5000, num_workers: int = 8):
         self.time_limit_seconds = time_limit_seconds
         self.num_workers = num_workers
 

@@ -9,10 +9,10 @@ class Task(BaseModel):
     task_type: Literal["event", "periodic"]
     period: int = 0  # Only relevant info for periodic tasks. Not used in scheduler
     min_start: int = 0 # Earliest schedulable time for task
-    duration: int
+    duration: float
     memory: int
     eligible_cores: List[str]
-    required_domain: Literal["general_purpose", "safety", "none"] = "none"
+    required_domain: str = "general_purpose"
     notes: str = ""
 
 class Dependency(BaseModel):
@@ -32,7 +32,7 @@ class Core(BaseModel):
     name: str
     cluster_id: str
     wcet_scale: float = 1.0
-    execution_domain: Literal["general_purpose", "safety"]
+    execution_domain: str = "general_purpose"
     supported_task_types: List[Literal["event", "periodic"]]
     memory_budget: int
     notes: str = ""
@@ -40,7 +40,7 @@ class Core(BaseModel):
 class Cluster(BaseModel):
     id: str
     name: str
-    execution_domain: Literal["general_purpose", "safety"]
+    type: str = "application"
     memory_budget: int
     memory_type: str = "cache"
     memory_level: str = "L3"
