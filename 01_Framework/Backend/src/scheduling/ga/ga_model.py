@@ -1,9 +1,12 @@
+import logging
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
 import pygad
 
 from schemas.schemas import ProblemInstance
+
+logger = logging.getLogger(__name__)
 
 
 class GaModel:
@@ -106,14 +109,12 @@ class GaModel:
         """
         Log every 25 generations
         """
-        if ga_instance.generations_completed % 25 == 0:
+        if ga_instance.generations_completed % 100 == 0:
             best_solution, best_fitness, _ = ga_instance.best_solution()
             best_cost = (1.0 / best_fitness) - 1.0
-            print(
-                f"Generation {ga_instance.generations_completed:4d}"
-                f"| best fitness = {best_fitness:.8f}"
-                f"| approx best cost = {best_cost:.4f}"
-            )
+            logger.debug("Generation %d | best fitness = %.8f | approx best cost = .4f",
+                         ga_instance.generations_completed, best_fitness, best_cost
+                         )
 
     def _gene_types(self):
         types = []

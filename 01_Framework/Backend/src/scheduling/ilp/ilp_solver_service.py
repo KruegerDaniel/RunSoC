@@ -1,3 +1,4 @@
+import logging
 from timeit import default_timer as timer
 
 import pulp
@@ -9,6 +10,7 @@ from schemas.schemas import ProblemInstance
 from schemas.solver_result import SolverResult
 from utils.numerical_util import clean_num
 
+logger = logging.getLogger(__name__)
 
 class IlpSolverService(BaseSolver):
     name = "CBC"
@@ -19,6 +21,13 @@ class IlpSolverService(BaseSolver):
 
     def solve(self, problem: ProblemInstance) -> dict:
         model, variables = build_model(problem)
+        logger.info(
+            "CBC solve started | tasks=%s | cores=%s | clusters=%s | time_limit=%s",
+            len(problem.tasks),
+            len(problem.cores),
+            len(problem.clusters),
+            self.time_limit_seconds,
+        )
 
         solver = pulp.PULP_CBC_CMD(
             msg=True,
@@ -28,7 +37,16 @@ class IlpSolverService(BaseSolver):
         )
         start = timer()
         status_code = model.solve(solver)
-        end = timer()
+
+        runtime_seconds = timer() - start
+        status = pulp.LpStatus[status_code]
+
+        logger.info(
+            "CBC solve finished | status=%s | raw_status=%s | runtime_seconds=%.4f",
+            status,
+            status_code,
+            runtime_seconds,
+        )
 
         normalized_result = self._to_normalized_result(
             model=model,
@@ -36,7 +54,7 @@ class IlpSolverService(BaseSolver):
             status_code=status_code,
             problem_instance=problem,
             metadata={
-                "runtime_seconds": end - start,
+                "runtime_seconds": runtime_seconds,
             }
         )
 

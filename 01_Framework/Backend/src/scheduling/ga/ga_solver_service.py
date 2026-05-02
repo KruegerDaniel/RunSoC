@@ -1,3 +1,4 @@
+import logging
 from timeit import default_timer as timer
 
 from scheduling.base_solver import BaseSolver
@@ -5,6 +6,8 @@ from scheduling.extractor import build_solution_response
 from scheduling.ga.ga_model import GaModel
 from schemas.schemas import ProblemInstance
 from schemas.solver_result import SolverResult
+
+logger = logging.getLogger(__name__)
 
 
 class GASolverService(BaseSolver):
@@ -31,11 +34,25 @@ class GASolverService(BaseSolver):
 
     def solve(self, problem: ProblemInstance):
         model = GaModel(problem)
+        logger.info(
+            "GA solve started | tasks=%s | cores=%s | clusters=%s | time_limit=%s",
+            len(problem.tasks),
+            len(problem.cores),
+            len(problem.clusters),
+            self.time_limit_seconds,
+        )
 
         start = timer()
         decoded = model.solve(self.ga_properties)
-        end = timer()
-        decoded["runtime_seconds"] = end - start
+        runtime_seconds = timer() - start
+        decoded["runtime_seconds"] = runtime_seconds
+
+        logger.info(
+            "GA solve finished | status=%s | runtime_seconds=%.4f | gens=%d",
+            "FEASIBLE",
+            runtime_seconds,
+            self.ga_properties["num_generations"],
+        )
         normalized_result = self._to_normalized_result(problem, decoded)
 
         return build_solution_response(problem, normalized_result)

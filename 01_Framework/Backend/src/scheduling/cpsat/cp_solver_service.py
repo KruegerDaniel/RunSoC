@@ -1,3 +1,4 @@
+import logging
 from timeit import default_timer as timer
 
 from ortools.sat.python import cp_model
@@ -7,6 +8,8 @@ from schemas.solver_result import SolverResult
 from .model_builder import build_model_cpsat
 from ..base_solver import BaseSolver
 from ..extractor import build_solution_response
+
+logger = logging.getLogger(__name__)
 
 
 class CpSolverService(BaseSolver):
@@ -23,17 +26,34 @@ class CpSolverService(BaseSolver):
         solver.parameters.max_time_in_seconds = self.time_limit_seconds
         solver.parameters.num_search_workers = self.num_workers
 
+        logger.info(
+            "CP-SAT solve started | tasks=%s | cores=%s | clusters=%s | time_limit=%s",
+            len(problem.tasks),
+            len(problem.cores),
+            len(problem.clusters),
+            self.time_limit_seconds,
+        )
+
         # solver.parameters.log_search_progress = True
         start = timer()
         status_code = solver.Solve(model)
-        end = timer()
+        runtime_seconds = timer() - start
+
+        status = solver.status_name(status_code)
+
+        logger.info(
+            "CP-SAT solve finished | status=%s | raw_status=%s | runtime_seconds=%.4f",
+            status,
+            status_code,
+            runtime_seconds,
+        )
 
         normalized_result = self._to_normalized_result(
             solver=solver,
             status_code=status_code,
             vars_dict=vars_dict,
             problem_instance=problem,
-            metadata={"runtime_seconds": end - start},
+            metadata={"runtime_seconds": runtime_seconds},
         )
 
         return build_solution_response(problem, normalized_result)

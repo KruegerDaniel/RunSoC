@@ -1,7 +1,9 @@
+import logging
 import os
 import sys
+import uuid
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from pydantic import ValidationError
 
@@ -9,13 +11,17 @@ from mappers.problem_instance_mapper import ProblemInstanceMapper
 from scheduling.cpsat.cp_solver_service import CpSolverService
 from scheduling.ga.ga_solver_service import GASolverService
 from scheduling.ilp.ilp_solver_service import IlpSolverService
-from schemas.schemas import ProblemInstance
 from services.scheduling_service import run_scheduling_request
+from utils.logger import configure_logging
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 app = Flask(__name__)
 CORS(app)
+
+configure_logging(app, log_dir="logs", log_file="app.log", max_age_days=1)
+
+logger = logging.getLogger(__name__)
 
 solvers = {
     "CPSAT": CpSolverService(),
@@ -25,14 +31,26 @@ solvers = {
 mapper = ProblemInstanceMapper()
 
 
+@app.before_request
+def add_request_id():
+    g.request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+
+
+@app.after_request
+def add_request_id_header(response):
+    response.headers["X-Request-ID"] = g.request_id
+    return response
+
 @app.route("/api/schedule", methods=["POST"])
 def schedule():
     try:
         data = request.get_json() or {}
+        logger.info(f"Scheduling request received")
         result, status = run_scheduling_request(data)
+        logger.info(f"Scheduling request completed with status=%s", {status})
         return jsonify(result), status
     except Exception as e:
-        app.logger.exception("Unhandled error in /api/schedule")
+        logger.exception("Unhandled error in /api/schedule")
         return jsonify({"error": str(e)}), 500
 
 
@@ -46,22 +64,31 @@ def solve(solver_name: str):
         solver = solvers.get(solver_key)
 
         if solver is None:
+            logger.warning("Unknown solver requested: %s", solver_name)
             return jsonify({
                 "error": f"Unknown solver '{solver_name}'",
                 "available_solvers": list(solvers.keys()),
             }), 400
 
-        app.logger.info(f"Solver requested: {solver_key}")
+        logger.info(
+            "Solver requested: %s | tasks=%s | cores=%s | clusters=%s",
+            solver_key,
+            len(problem.tasks),
+            len(problem.cores),
+            len(problem.clusters),
+        )
         result = solver.solve(problem)
+
+        logger.info("Solver completed: %s", solver_key)
 
         return jsonify(result), 200
 
     except ValidationError as e:
+        logger.warning("Validation error in /api/solve/%s: %s", solver_name, e.errors())
         return jsonify({"error": e.errors()}), 400
     except Exception as e:
-        app.logger.exception(f"Unhandled error in /api/solve/{solver_name}")
+        logger.exception("Unhandled error in /api/solve/%s", solver_name)
         return jsonify({"error": str(e)}), 500
-
 
 @app.get("/api/solve")
 def list_solvers():

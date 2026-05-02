@@ -242,8 +242,6 @@ def run_main_scheduler(
             running[(n, t)] = (finish, assigned_core)
             schedule.append(ScheduleEntry(
                 n, start, finish, assigned_core, eligible_time=t))
-            # print(ScheduleEntry(
-            #     n, start, finish, assigned_core, eligible_time=t))
             T_i = int(tasks[n].get("period", 0))
             next_active = t + T_i
             if T_i > 0 and next_active < T_end:

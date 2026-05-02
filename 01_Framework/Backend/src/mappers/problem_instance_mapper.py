@@ -1,8 +1,10 @@
+import logging
 from collections import defaultdict, deque
 from enum import Enum
 
 from schemas.schemas import ProblemInstance, Cluster, Core, MemoryNode, Task, Dependency
 
+logger = logging.getLogger(__name__)
 # If True, then throws error on missing execution_domain
 IS_STRICT_DOMAIN = False
 
@@ -270,7 +272,7 @@ class ProblemInstanceMapper:
             if IS_STRICT_DOMAIN:
                 raise ValueError(f"Task domains {task_domains} are not a subset of core domains {core_domains}")
             else:
-                print(f"Warn: Mismatching task-core domains will be set to general_purpose.")
+                logger.warning("Warn: Mismatching task-core domains will be set to general_purpose.")
 
         core_domain_map = defaultdict(list)
         for c in cores:
@@ -301,6 +303,7 @@ class ProblemInstanceMapper:
         """
         Helper function to duplicate platform objects (core, cluster, memory node) if count is specified in request.
         """
+        logger.debug("Duplicating %s %s %d times", obj_type, id_prefix, iterations)
         duplicates = []
 
         for i in range(1, iterations + 1):
