@@ -42,6 +42,13 @@ class ProblemInstanceMapper:
         tasks, dependencies = self._extract_taskset(data)
         tasks = self._map_task_to_domain_core(tasks, cores)
 
+        logger.info(
+            "Mapped problem | original_tasks=%d | expanded_tasks=%d | dependencies=%d",
+            len(data.get("tasks", [])),
+            len(tasks),
+            len(dependencies),
+        )
+
         return ProblemInstance(
             tasks=tasks,
             dependencies=dependencies,
@@ -223,7 +230,7 @@ class ProblemInstanceMapper:
 
         # Periodic duplication via graph traversal
         new_tasks_map = {}
-        new_dependencies = []
+        new_dependency_pairs = set()
         periodics = [t for t in tasks if t.task_type == "periodic"]
 
         for p in periodics:
@@ -251,17 +258,17 @@ class ProblemInstanceMapper:
 
                 for succ in adj_list[curr_id]:
                     succ_dup_id = f"{succ}{dup_id_suffix}"
-                    new_dependencies.append(Dependency(
-                        predecessor=dup_id,
-                        successor=succ_dup_id
-                    ))
+
+                    new_dependency_pairs.add((dup_id, succ_dup_id))
 
                     if succ not in visited:
                         queue.append(succ)
                         visited.add(succ)
 
         tasks.extend(new_tasks_map.values())
-        dependencies.extend(new_dependencies)
+        dependencies.extend(
+            Dependency(predecessor=p, successor=s) for p, s in new_dependency_pairs
+        )
 
         return tasks, dependencies
 

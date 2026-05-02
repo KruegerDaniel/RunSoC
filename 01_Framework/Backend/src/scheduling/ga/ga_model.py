@@ -1,4 +1,6 @@
+import heapq
 import logging
+import time
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -11,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class GaModel:
 
-    def __init__(self, problem_instance: ProblemInstance):
+    def __init__(self, problem_instance: ProblemInstance, time_limit_seconds: int = 100):
         self.problem_instance = problem_instance
         self.tasks = {t.id: t for t in problem_instance.tasks}
         self.task_ids = [t.id for t in problem_instance.tasks]
@@ -34,6 +36,10 @@ class GaModel:
             self.successors[dep.predecessor].append(dep.successor)
 
         self.communications_path = problem_instance.communication_paths
+        self.explicit_path_penalty = {
+            (comm.source, comm.target): comm.penalty
+            for comm in self.communications_path
+        }
 
         self.num_genes = 2 * len(self.tasks)
         # Defining gene space
@@ -47,13 +53,29 @@ class GaModel:
             self.gene_space.append({"low": 0.0, "high": 1.0})
 
     def solve(self, ga_properties):
+
+        start_time = time.time()
+
+        def on_generation(ga_instance):
+            elapsed = time.time() - start_time
+
+            if ga_instance.generations_completed % 100 == 0:
+                logger.debug(
+                    "Generation %d | time elapsed: %.2f",
+                    ga_instance.generations_completed,
+                    elapsed,
+                )
+
+            if elapsed >= getattr(self, "time_limit_seconds", 5000):
+                return "stop"
+
         ga = pygad.GA(
             **ga_properties,
             num_genes=self.num_genes,
             gene_space=self.gene_space,
             gene_type=self._gene_types(),
             fitness_func=self.fitness_func,
-            on_generation=self.on_generation,
+            on_generation=on_generation,
         )
 
         ga.run()
@@ -104,17 +126,6 @@ class GaModel:
         cost = decoded["total_cost"]
         return 1.0 / (1.0 + cost)
 
-    @staticmethod
-    def on_generation(ga_instance: pygad.GA):
-        """
-        Log every 25 generations
-        """
-        if ga_instance.generations_completed % 100 == 0:
-            best_solution, best_fitness, _ = ga_instance.best_solution()
-            best_cost = (1.0 / best_fitness) - 1.0
-            logger.debug("Generation %d | best fitness = %.8f | approx best cost = .4f",
-                         ga_instance.generations_completed, best_fitness, best_cost
-                         )
 
     def _gene_types(self):
         types = []
@@ -165,38 +176,64 @@ class GaModel:
         """
         Scheduling decoder
         """
-        unscheduled = set(self.task_ids)
-        starts: Dict[str, int] = {}
-        finishes: Dict[str, int] = {}
+        starts: Dict[str, float] = {}
+        finishes: Dict[str, float] = {}
 
-        core_available: Dict[str, int] = {cid: 0 for cid in self.core_ids}
+        core_available: Dict[str, float] = {cid: 0 for cid in self.core_ids}
         priority_rank = {tid: rank for rank, tid in enumerate(priority_order)}
 
-        while unscheduled:
-            ready = [
-                tid for tid in unscheduled
-                if all(pred in finishes for pred in self.predecessors.get(tid, []))
-            ]
+        remaining_preds = {
+            tid: len(self.predecessors.get(tid, []))
+            for tid in self.task_ids
+        }
 
-            if not ready:
-                raise RuntimeError("No ready tasks found during decoding")
+        pred_max_finish = {
+            tid: 0.0
+            for tid in self.task_ids
+        }
 
-            ready.sort(key=lambda tid: priority_rank[tid])
-            tid = ready[0]
+        ready_heap = []
+
+        for tid in self.task_ids:
+            if remaining_preds[tid] == 0:
+                heapq.heappush(
+                    ready_heap,
+                    (priority_rank[tid], self.task_index[tid], tid)
+                )
+        scheduled_count = 0
+
+        while ready_heap:
+            _, _, tid = heapq.heappop(ready_heap)
 
             assigned_core = assignment[tid]
-            pred_finish = 0
-            if self.predecessors.get(tid):
-                pred_finish = max(finishes[p] for p in self.predecessors[tid])
-            min_start = getattr(self.tasks[tid], "min_start", 0)
-            start = max(core_available[assigned_core], pred_finish, min_start)
-            wcet_scale = getattr(self.cores[assigned_core], "wcet_scale", 1.0)
+
+            min_start = getattr(self.tasks[tid], "min_start", 0) or 0
+            start = max(
+                core_available[assigned_core],
+                pred_max_finish[tid],
+                min_start,
+            )
+
+            wcet_scale = getattr(self.cores[assigned_core], "wcet_scale", 1.0) or 1.0
             finish = start + self.tasks[tid].duration * wcet_scale
 
             starts[tid] = start
             finishes[tid] = finish
             core_available[assigned_core] = finish
-            unscheduled.remove(tid)
+            scheduled_count += 1
+
+            for succ in self.successors.get(tid, []):
+                if finish > pred_max_finish[succ]:
+                    pred_max_finish[succ] = finish
+                remaining_preds[succ] -= 1
+                if remaining_preds[succ] == 0:
+                    heapq.heappush(
+                        ready_heap,
+                        (priority_rank[succ], self.task_index[succ], succ)
+                    )
+
+        if scheduled_count != len(self.task_ids):
+            raise RuntimeError("Cycle or unschedulable dependency graph during GA decoding")
 
         return starts, finishes
 
@@ -223,9 +260,7 @@ class GaModel:
         return core_overflow, cluster_overflow
 
     def _calculate_comm_cost(self, assignment: Dict[str, str]) -> float:
-        explicit_path_penalty = {
-            (comm.source, comm.target): comm.penalty for comm in self.communications_path
-        }
+        explicit_path_penalty = self.explicit_path_penalty
         comm_penalty_weight = self.problem_instance.comms_penalty_weight
         intra_core_weight = comm_penalty_weight.get("intra_core_weight", 0)
         inter_core_weight = comm_penalty_weight.get("inter_core_weight", 0)

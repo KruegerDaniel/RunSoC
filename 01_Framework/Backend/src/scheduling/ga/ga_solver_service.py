@@ -29,11 +29,10 @@ class GASolverService(BaseSolver):
             "K_tournament": 3,
             "mutation_type": "random",
             "mutation_percent_genes": 10,
-            # "random_seed": 42,
         }
 
     def solve(self, problem: ProblemInstance):
-        model = GaModel(problem)
+        model = GaModel(problem, time_limit_seconds=self.time_limit_seconds)
         logger.info(
             "GA solve started | tasks=%s | cores=%s | clusters=%s | time_limit=%s",
             len(problem.tasks),
