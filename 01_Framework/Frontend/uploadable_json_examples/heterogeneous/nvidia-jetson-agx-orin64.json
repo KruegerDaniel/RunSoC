@@ -15,7 +15,7 @@
     "name": "nvidia_jetson_agx_orin_64gb",
     "numCores": 14,
     "numClusters": 5,
-    "timeUnit": "ms",
+    "timeUnit": "us",
     "clusters": [
       {
         "name": "cpu_cluster",

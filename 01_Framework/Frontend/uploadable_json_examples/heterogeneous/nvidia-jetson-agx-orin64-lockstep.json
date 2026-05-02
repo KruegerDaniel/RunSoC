@@ -15,7 +15,7 @@
     "name": "nvidia_jetson_agx_orin_64gb",
     "numCores": 14,
     "numClusters": 5,
-    "timeUnit": "ms",
+    "timeUnit": "us",
     "clusters": [
       {
         "name": "cpu_cluster",
@@ -32,7 +32,10 @@
             "executionDomain": "safety",
             "wcetScale": 1.1,
             "localMemoryKB": 384,
-            "supportedTaskTypes": ["event", "periodic"],
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
             "count": 2,
             "notes": "Combined ARM Cortex-A78AE to lockstep (memory doubled)"
           }
@@ -58,7 +61,10 @@
             "id": "cortex_r5",
             "executionDomain": "always_on",
             "wcetScale": 1.0,
-            "supportedTaskTypes": ["event", "periodic"],
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
             "notes": "Arm Cortex-R5 processor with tightly coupled RAM"
           }
         ]
@@ -77,7 +83,10 @@
             "frequencyGhz": 2.0,
             "executionDomain": "audio",
             "wcetScale": 1.0,
-            "supportedTaskTypes": ["event", "periodic"],
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
             "notes": "Arm Cortex A9 processor with NEON"
           }
         ]

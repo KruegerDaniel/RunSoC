@@ -16,7 +16,7 @@
     "numCores": 7,
     "numClusters": 5,
     "globalScheduling": "partitioned_fixed_priority",
-    "timeUnit": "ms",
+    "timeUnit": "us",
     "clusters": [
       {
         "name": "app_cluster_0",
@@ -140,15 +140,15 @@
       ]
     }
   ],
-  "communications": [
+  "communicationPaths": [
     {
-      "source": "c_00",
-      "target": "c_01",
+      "source": "core_00",
+      "target": "core_01",
       "penalty": 5
     },
     {
-      "source": "c_01",
-      "target": "c_04",
+      "source": "core_01",
+      "target": "core_04",
       "penalty": 10
     }
   ]
