@@ -1,0 +1,97 @@
+{
+  "config": {
+    "generateComms": true,
+    "commsPenaltyWeight": {
+      "intraCoreWeight": 0,
+      "interCoreWeight": 8,
+      "interClusterWeight": 15
+    },
+    "memoryPenaltyScale": {
+      "coreOverflowScale": 1,
+      "clusterOverflowScale": 2
+    }
+  },
+  "platform": {
+    "name": "renesas_rcar_vh4_7",
+    "numCores": 7,
+    "numClusters": 5,
+    "globalScheduling": "partitioned_fixed_priority",
+    "timeUnit": "us",
+    "clusters": [
+      {
+        "name": "app_cluster_0",
+        "id": "app_cluster_0",
+        "type": "application",
+        "numCores": 2,
+        "count": 2,
+        "notes": "General compute cluster for ADAS/AD applications",
+        "cores": [
+          {
+            "name": "arm_cortex_a76",
+            "id": "core_00",
+            "count": 2,
+            "kDMIPS": 49,
+            "frequencyGhz": 1.8,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "General compute for ADAS/AD applications"
+          }
+        ],
+        "memory": [
+          {
+            "type": "cache",
+            "level": "L3",
+            "sizeKB": 512
+          }
+        ]
+      },
+      {
+        "name": "rt_cluster_0",
+        "id": "rt_cluster_0",
+        "type": "safety",
+        "numCores": 1,
+        "count": 3,
+        "notes": "Safety Island for ASIL tasks",
+        "cores": [
+          {
+            "name": "cortex_r52",
+            "id": "core_04",
+            "executionDomain": "safety",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "notes": "Lockstep cores to support ASIL D real-time operations"
+          }
+        ]
+      }
+    ],
+    "memoryNodes": [
+      {
+        "id": "mn_00",
+        "name": "main_dram",
+        "type": "dram",
+        "scope": "system",
+        "accessibleBy": [
+          "app_cluster_0",
+          "app_cluster_1",
+          "rt_cluster_0",
+          "rt_cluster_1",
+          "rt_cluster_2"
+        ],
+        "technology": "LPDDR5",
+        "capacityGB": 16,
+        "coherent": false,
+        "contentionDomain": "mm_ddr"
+      }
+    ]
+  },
+  "communicationPaths": []
+}

@@ -3,6 +3,8 @@ from enum import Enum
 
 from schemas.schemas import ProblemInstance, Cluster, Core, MemoryNode, Task, Dependency
 
+# If True, then throws error on missing execution_domain
+IS_STRICT_DOMAIN = False
 
 class PlatformObjectType(str, Enum):
     CLUSTER = "cluster"
@@ -103,7 +105,7 @@ class ProblemInstanceMapper:
                         id=c.get("id"),
                         name=c.get("name"),
                         cluster_id=concrete_cluster.id,
-                        execution_domain=c.get("executionDomain", base_cluster.execution_domain),
+                        execution_domain=c.get("executionDomain"),
                         wcet_scale=c.get("wcetScale"),
                         memory_budget=c.get("localMemoryKB"),
                         supported_task_types=c.get("supportedTaskTypes"),
@@ -262,11 +264,22 @@ class ProblemInstanceMapper:
         return tasks, dependencies
 
     def _map_task_to_domain_core(self, tasks: list[Task], cores: list[Core]) -> list[Task]:
+        core_domains = set(c.execution_domain for c in cores)
+        task_domains = set(t.required_domain for t in tasks)
+        if not task_domains.issubset(core_domains):
+            if IS_STRICT_DOMAIN:
+                raise ValueError(f"Task domains {task_domains} are not a subset of core domains {core_domains}")
+            else:
+                print(f"Warn: Mismatching task-core domains will be set to general_purpose.")
+
         core_domain_map = defaultdict(list)
         for c in cores:
             core_domain_map[c.execution_domain].append(c.id)
 
         for t in tasks:
+            if t.required_domain not in core_domain_map:
+                t.required_domain = "general_purpose"
+
             domain_cores = core_domain_map.get(t.required_domain, [])
 
             # avoid duplicates
@@ -297,7 +310,7 @@ class ProblemInstanceMapper:
                 dup = Cluster(
                     id=new_id,
                     name=f"{obj.name}_{i}" if obj.name else new_id,
-                    execution_domain=obj.execution_domain,
+                    type=obj.type,
                     memory_budget=obj.memory_budget,
                     notes=obj.notes
                 )
