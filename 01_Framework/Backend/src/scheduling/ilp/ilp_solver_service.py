@@ -13,9 +13,9 @@ from utils.numerical_util import clean_num
 class IlpSolverService(BaseSolver):
     name = "CBC"
 
-    def __init__(self):
-        self.time_limit_seconds = 100
-        self.keep_files = False
+    def __init__(self, time_limit_seconds: int = 5000, keep_files: bool = False):
+        self.time_limit_seconds = time_limit_seconds
+        self.keep_files = keep_files
 
     def solve(self, problem: ProblemInstance) -> dict:
         model, variables = build_model(problem)
