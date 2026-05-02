@@ -1,0 +1,110 @@
+{
+  "config": {
+    "generateComms": true,
+    "commsPenaltyWeight": {
+      "intraCoreWeight": 0,
+      "interCoreWeight": 8,
+      "interClusterWeight": 15
+    },
+    "memoryPenaltyScale": {
+      "coreOverflowScale": 1,
+      "clusterOverflowScale": 2
+    }
+  },
+  "platform": {
+    "name": "nvidia_jetson_agx_orin_64gb",
+    "numCores": 14,
+    "numClusters": 5,
+    "timeUnit": "ms",
+    "clusters": [
+      {
+        "name": "cpu_cluster",
+        "id": "cpu_cluster_0",
+        "type": "application",
+        "executionDomain": "general_purpose",
+        "numCores": 4,
+        "count": 3,
+        "notes": "Arm Cortex-A78AE CPU cluster (3 clusters in total)",
+        "cores": [
+          {
+            "name": "arm_cortex_a78ae",
+            "id": "core_00",
+            "frequencyGhz": 2.2,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": ["event", "periodic"],
+            "count": 4,
+            "notes": "64KB L1 I-cache + 64KB L1 D-cache + 256KB L2 cache (3 * 4 = 12 clusters in total)"
+          }
+        ],
+        "memory": [
+          {
+            "type": "cache",
+            "level": "L3",
+            "sizeKB": 2048,
+            "notes": "2MB L3 Cache per CPU cluster"
+          }
+        ]
+      },
+      {
+        "name": "aon_cluster",
+        "id": "aon_cluster",
+        "type": "sensor_processing",
+        "numCores": 1,
+        "notes": "Sensor Processing Engine (SPE)",
+        "cores": [
+          {
+            "name": "cortex_r5",
+            "id": "core_12",
+            "executionDomain": "always_on",
+            "wcetScale": 1.0,
+            "supportedTaskTypes": ["event", "periodic"],
+            "notes": "Arm Cortex-R5 processor with tightly coupled RAM"
+          }
+        ]
+      },
+      {
+        "name": "audio_cluster",
+        "id": "audio_cluster",
+        "type": "audio_processing",
+        "executionDomain": "audio",
+        "numCores": 1,
+        "notes": "Audio Subsystem (APE)",
+        "cores": [
+          {
+            "name": "cortex_a9",
+            "id": "core_13",
+            "frequencyGhz": 2.0,
+            "executionDomain": "audio",
+            "wcetScale": 1.0,
+            "supportedTaskTypes": ["event", "periodic"],
+            "notes": "Arm Cortex A9 processor with NEON"
+          }
+        ]
+      }
+    ],
+    "memoryNodes": [
+      {
+        "id": "mn_00",
+        "name": "main_dram",
+        "type": "dram",
+        "scope": "system",
+        "accessibleBy": [
+          "cpu_cluster_0",
+          "cpu_cluster_1",
+          "cpu_cluster_2",
+          "aon_cluster",
+          "audio_cluster"
+        ],
+        "technology": "LPDDR5",
+        "capacityGB": 64,
+        "coherent": false,
+        "contentionDomain": "mm_ddr",
+        "notes": "64GB 256-bit LPDDR5 DRAM"
+      }
+    ]
+  },
+  "tasks": [],
+  "communications": []
+}
