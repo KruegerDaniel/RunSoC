@@ -1,364 +1,81 @@
 import logging
-from collections import defaultdict, deque
-from enum import Enum
-from typing import Set
 
-from schemas.schemas import ProblemInstance, Cluster, Core, MemoryNode, Task, Dependency, CommunicationPath
+from mappers.job_expander import _expand_jobs, _derive_horizon
+from mappers.platform_mapper import _parse_platform, _extract_memory_nodes, _parse_comms
+from mappers.request_config_mapper import _parse_config
+from mappers.task_chain_mapper import _parse_task_chains
+from mappers.task_template_mapper import _parse_task_templates, _map_tasks_to_domain_cores
+from mappers.validators import _validate_jobs_have_eligible_cores
+from schemas.schemas import ProblemInstance
 
 logger = logging.getLogger(__name__)
-# If True, then throws error on missing execution_domain
-IS_STRICT_DOMAIN = False
-
-
-class PlatformObjectType(str, Enum):
-    CLUSTER = "cluster"
-    CORE = "core"
-    MEMORY_NODE = "memory_node"
 
 
 class ProblemInstanceMapper:
-
     def from_request_json(self, data: dict) -> ProblemInstance:
         """
-        Map a solver request JSON to a ProblemInstance object.
-        Also validates values
-        :param data: JSON data following empty_soc.json format
-        :return: Mapped instance of ProblemInstance
+        Request JSON -> ProblemInstance.
+
+        Important distinction:
+        - tasks/dependencies/task_chains are templates.
+        - jobs/job_dependencies are concrete finite-horizon schedulable instances.
         """
-        comms_weight, mem_scale = self._extract_config(data)
+        comms_weight, mem_scale = _parse_config(data)
 
-        soc_platform = data.get("platform", {})
-        num_clusters = soc_platform.get("numClusters")
-        num_cores = soc_platform.get("numCores")
-        clusters, cores = self._extract_cluster_cores(data)
-        if num_clusters != len(clusters):
-            raise ValueError(
-                f"Number of clusters in the problem instance ({len(clusters)}) does not match the number of clusters specified in the request ({num_clusters}).")
-        if num_cores != len(cores):
-            raise ValueError(
-                f"Number of cores in the problem instance ({len(cores)}) does not match the number of cores specified in the request ({num_cores}).")
+        clusters, cores = _parse_platform(data)
+        memory_nodes = _extract_memory_nodes(
+            data,
+            cl_ids=[c.id for c in clusters],
+        )
 
-        # memory_nodes = self._extract_memory_nodes(data, cl_ids=[c.id for c in clusters])
-        comms = self._extract_comms(data, set([c.id for c in cores]))
+        comms = _parse_comms(data, core_ids={c.id for c in cores})
 
-        tasks, dependencies = self._extract_taskset(data)
-        tasks = self._map_task_to_domain_core(tasks, cores)
+        tasks, dependencies = _parse_task_templates(data)
+        tasks = _map_tasks_to_domain_cores(tasks, cores)
+
+        task_chains = _parse_task_chains(
+            data=data,
+            tasks=tasks,
+            dependencies=dependencies,
+        )
+
+        horizon = _derive_horizon(data, task_chains)
+
+        jobs, job_dependencies = _expand_jobs(
+            tasks=tasks,
+            dependencies=dependencies,
+            task_chains=task_chains,
+            horizon=horizon,
+        )
+
+        _validate_jobs_have_eligible_cores(jobs)
 
         logger.info(
-            "Mapped problem | original_tasks=%d | expanded_tasks=%d | dependencies=%d",
-            len(data.get("tasks", [])),
+            (
+                "Mapped problem | templates=%d | chains=%d | jobs=%d | "
+                "template_deps=%d | job_deps=%d | cores=%d | clusters=%d | horizon=%s"
+            ),
             len(tasks),
+            len(task_chains),
+            len(jobs),
             len(dependencies),
+            len(job_dependencies),
+            len(cores),
+            len(clusters),
+            horizon,
         )
 
         return ProblemInstance(
             tasks=tasks,
             dependencies=dependencies,
+            task_chains=task_chains,
+            jobs=jobs,
+            job_dependencies=job_dependencies,
             clusters=clusters,
             cores=cores,
+            memory_nodes=memory_nodes,
             communication_paths=comms,
+            horizon=horizon,
             memory_penalty_scale=mem_scale,
             comms_penalty_weight=comms_weight,
         )
-
-    def _extract_config(self, data: dict):
-        config = data.get("config", {})
-        comms_penalty_weight = config.get("commsPenaltyWeight", {})
-        comms_weight = {
-            "intra_core_weight": comms_penalty_weight.get("intraCoreWeight", 0),
-            "inter_core_weight": comms_penalty_weight.get("interCoreWeight", 8),
-            "inter_cluster_weight": comms_penalty_weight.get("interClusterWeight", 15),
-        }
-
-        mem_penalty_scale = config.get("memoryPenaltyScale", {})
-        mem_scale = {
-            "core_overflow_scale": mem_penalty_scale.get("coreOverflowScale", 1),
-            "cluster_overflow_scale": mem_penalty_scale.get("clusterOverflowScale", 1),
-        }
-        return comms_weight, mem_scale
-
-    def _extract_cluster_cores(self, data: dict) -> tuple[list[Cluster], list[Core]]:
-        raw_clusters = data.get("platform", {}).get("clusters", [])
-        clusters: list[Cluster] = []
-        cores: list[Core] = []
-
-        for cl in raw_clusters:
-            memory = cl.get("memory", [])
-            base_cluster = Cluster(
-                id=cl.get("id"),
-                name=cl.get("name"),
-                type=cl.get("type"),
-                memory_budget=sum(m.get("sizeKB", 0) for m in memory),
-                notes=cl.get("notes", ""),
-            )
-
-            cluster_count = cl.get("count", 1)
-            if cluster_count < 1:
-                raise ValueError(f"Cluster {base_cluster.id}: count must be >= 1")
-
-            concrete_clusters = [base_cluster]
-            concrete_clusters.extend(
-                self._duplicate_object(
-                    obj_type=PlatformObjectType.CLUSTER,
-                    obj=base_cluster,
-                    iterations=cluster_count - 1,
-                    id_prefix=base_cluster.id,
-                )
-            )
-            clusters.extend(concrete_clusters)
-
-            cluster_core_total = 0
-
-            for concrete_cluster in concrete_clusters:
-                for c in cl.get("cores", []):
-                    base_core = Core(
-                        id=c.get("id"),
-                        name=c.get("name"),
-                        cluster_id=concrete_cluster.id,
-                        execution_domain=c.get("executionDomain"),
-                        wcet_scale=c.get("wcetScale"),
-                        memory_budget=c.get("localMemoryKB"),
-                        supported_task_types=c.get("supportedTaskTypes"),
-                    )
-
-                    core_count = c.get("count", 1)
-                    if core_count < 1:
-                        raise ValueError(
-                            f"Core {c.get('id')} in cluster {concrete_cluster.id}: count must be >= 1"
-                        )
-
-                    if concrete_cluster.id != base_cluster.id:
-                        base_core.id = f"{c.get('id')}_{concrete_cluster.id}"
-                        if base_core.name:
-                            base_core.name = f"{base_core.name}_{concrete_cluster.id}"
-
-                    concrete_cores = [base_core]
-                    concrete_cores.extend(
-                        self._duplicate_object(
-                            obj_type=PlatformObjectType.CORE,
-                            obj=base_core,
-                            iterations=core_count - 1,
-                            id_prefix=base_core.id,
-                            cluster_id=concrete_cluster.id,
-                        )
-                    )
-
-                    cores.extend(concrete_cores)
-                    cluster_core_total += len(concrete_cores)
-
-            declared_num_cores = cl.get("numCores")
-            expected_per_cluster = 0
-            for c in cl.get("cores", []):
-                expected_per_cluster += c.get("count", 1)
-
-            if declared_num_cores != expected_per_cluster:
-                raise ValueError(
-                    f"Cluster {base_cluster.name}[{base_cluster.id}]: "
-                    f"numCores={declared_num_cores} does not match expanded core count "
-                    f"{expected_per_cluster}."
-                )
-
-        return clusters, cores
-
-    def _extract_memory_nodes(self, data: dict, cl_ids: list[str] = None):
-        raw_memory_nodes = data.get("platform", {}).get("memoryNodes", [])
-        memory_nodes = []
-        for mn in raw_memory_nodes:
-            capacity_gb = mn.get("capacityGB")
-            memory_node_id = mn.get("id")
-            memory_node = MemoryNode(
-                id=memory_node_id,
-                name=mn.get("name"),
-                type=mn.get("type", "dram"),
-                scope=mn.get("scope", "system"),
-                accessible_by=mn.get("accessibleBy", []),
-                capacity=mn.get("capacityGB") * (1024 ** 2) if capacity_gb else 0
-            )
-            # check accessibility values
-            for cl in memory_node.accessible_by:
-                if cl not in cl_ids:
-                    raise ValueError(
-                        f"MemoryNode {memory_node_id}: Cluster {cl} referenced in accessibleBy is not in the problem instance.")
-            memory_nodes.append(memory_node)
-        return memory_nodes
-
-    def _extract_comms(self, data: dict, cores: Set[str]):
-        config = data.get("config", {})
-        is_generate_mode = config.get("generateComms", True)
-        raw_communication_paths = data.get("communicationPaths", [])
-        num_cores = len(cores)
-        fully_connected_graph_edge_count = (num_cores * (num_cores - 1)) // 2
-        if not is_generate_mode and len(raw_communication_paths) < fully_connected_graph_edge_count:
-            raise ValueError(
-                f"Communication paths specified in the request ({len(raw_communication_paths)}) "
-                f"is less than the number of fully connected graph ({fully_connected_graph_edge_count})."
-            )
-
-        communication_paths = []
-        for comm in raw_communication_paths:
-            source = comm.get("source")
-            target = comm.get("target")
-            if source not in cores or target not in cores:
-                raise ValueError(
-                    f"Communication path {source} -> {target} contains invalid core IDs."
-                )
-            communication_paths.append(
-                CommunicationPath(
-                    source=source,
-                    target=target,
-                    penalty=comm.get("penalty")
-                )
-            )
-
-        return communication_paths
-
-    def _extract_taskset(self, data: dict, dup_id_suffix: str = "_2"):
-        """
-        Extracts tasks and dependencies from JSON.
-        Duplicates periodic tasks and their entire task chain, once.
-        :param data:
-        :return:
-        """
-        raw_tasks = data.get("tasks", [])
-        tasks = []
-        task_dict = {}
-        dependencies = []
-        adj_list = defaultdict(list)
-
-        for t in raw_tasks:
-            task = Task(
-                id=t.get("id"),
-                name=t.get("name"),
-                required_domain=t.get("requiredDomain"),
-                task_type="periodic" if t.get("period") > 0 else "event",
-                duration=t.get("wcet"),
-                period=t.get("period", 0),
-                memory=t.get("memoryUsageKB"),
-                eligible_cores=list(t.get("eligibleCores", []))
-            )
-            tasks.append(task)
-            task_dict[task.id] = task
-
-        for t in raw_tasks:
-            deps = t.get("dependencies", [])
-            t_id = t.get("id")
-            for d in deps:
-                dependencies.append(Dependency(
-                    predecessor=d,
-                    successor=t_id
-                ))
-                adj_list[d].append(t_id)
-
-        # Periodic duplication via graph traversal
-        new_tasks_map = {}
-        new_dependency_pairs = set()
-        periodics = [t for t in tasks if t.task_type == "periodic"]
-
-        for p in periodics:
-            # Queue for BFS
-            queue = deque([p.id])
-            visited = set([p.id])
-
-            while queue:
-                curr_id = queue.popleft()
-                curr_task = task_dict[curr_id]
-                dup_id = f"{curr_id}{dup_id_suffix}"
-
-                if dup_id not in new_tasks_map:
-                    new_tasks_map[dup_id] = Task(
-                        id=dup_id,
-                        name=f"{curr_task.name}{dup_id_suffix}",
-                        required_domain=curr_task.required_domain,
-                        task_type=curr_task.task_type,
-                        duration=curr_task.duration,
-                        period=curr_task.period,
-                        min_start=curr_task.period,  # Since min_start = 0 + 1 * prev_task.period
-                        memory=curr_task.memory,
-                        eligible_cores=list(curr_task.eligible_cores),
-                    )
-
-                for succ in adj_list[curr_id]:
-                    succ_dup_id = f"{succ}{dup_id_suffix}"
-
-                    new_dependency_pairs.add((dup_id, succ_dup_id))
-
-                    if succ not in visited:
-                        queue.append(succ)
-                        visited.add(succ)
-
-        tasks.extend(new_tasks_map.values())
-        dependencies.extend(
-            Dependency(predecessor=p, successor=s) for p, s in new_dependency_pairs
-        )
-
-        return tasks, dependencies
-
-    def _map_task_to_domain_core(self, tasks: list[Task], cores: list[Core]) -> list[Task]:
-        core_domains = set(c.execution_domain for c in cores)
-        task_domains = set(t.required_domain for t in tasks)
-        if not task_domains.issubset(core_domains):
-            if IS_STRICT_DOMAIN:
-                raise ValueError(f"Task domains {task_domains} are not a subset of core domains {core_domains}")
-            else:
-                logger.warning("Warn: Mismatching task-core domains will be set to general_purpose.")
-
-        core_domain_map = defaultdict(list)
-        for c in cores:
-            core_domain_map[c.execution_domain].append(c.id)
-
-        for t in tasks:
-            if t.required_domain not in core_domain_map:
-                t.required_domain = "general_purpose"
-
-            domain_cores = core_domain_map.get(t.required_domain, [])
-
-            # avoid duplicates
-            t.eligible_cores = list(dict.fromkeys([
-                *t.eligible_cores,
-                *domain_cores,
-            ]))
-
-        return tasks
-
-    def _duplicate_object(
-            self,
-            obj_type: PlatformObjectType,
-            obj,
-            iterations: int,
-            id_prefix: str,
-            cluster_id: str | None = None,
-    ) -> list[Cluster] | list[Core] | list[MemoryNode]:
-        """
-        Helper function to duplicate platform objects (core, cluster, memory node) if count is specified in request.
-        """
-        logger.debug("Duplicating %s %s %d times", obj_type, id_prefix, iterations)
-        duplicates = []
-
-        for i in range(1, iterations + 1):
-            new_id = f"{id_prefix}_{i}"
-
-            if obj_type == PlatformObjectType.CLUSTER:
-                dup = Cluster(
-                    id=new_id,
-                    name=f"{obj.name}_{i}" if obj.name else new_id,
-                    type=obj.type,
-                    memory_budget=obj.memory_budget,
-                    notes=obj.notes
-                )
-                duplicates.append(dup)
-
-            elif obj_type == PlatformObjectType.CORE:
-                dup = Core(
-                    id=new_id,
-                    name=f"{obj.name}_{i}" if obj.name else new_id,
-                    cluster_id=cluster_id if cluster_id is not None else obj.cluster_id,
-                    execution_domain=obj.execution_domain,
-                    wcet_scale=obj.wcet_scale,
-                    memory_budget=obj.memory_budget,
-                    supported_task_types=obj.supported_task_types,
-                )
-                duplicates.append(dup)
-            else:
-                raise ValueError(f"Invalid object type for duplication: {obj_type}")
-
-        return duplicates

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 
 @dataclass
@@ -10,13 +10,13 @@ class SolverResult:
     objective: Optional[float]
     makespan: Optional[float]
 
-    assignment: Dict[str, Optional[str]]
+    job_assignment: Dict[str, Optional[str]]
 
     starts: Dict[str, Optional[float]]
     finishes: Dict[str, Optional[float]]
 
-    core_overflows: Dict[str, Optional[int]]
-    cluster_overflows: Dict[str, Optional[int]]
+    core_overflows: Dict[str, Optional[float]]
+    cluster_overflows: Dict[str, Optional[float]]
 
     raw_status: Optional[object]
     runtime_seconds: float

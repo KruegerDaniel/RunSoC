@@ -12,6 +12,7 @@ from utils.numerical_util import clean_num
 
 logger = logging.getLogger(__name__)
 
+
 class IlpSolverService(BaseSolver):
     name = "CBC"
 
@@ -21,9 +22,11 @@ class IlpSolverService(BaseSolver):
 
     def solve(self, problem: ProblemInstance) -> dict:
         model, variables = build_model(problem)
+
         logger.info(
-            "CBC solve started | tasks=%s | cores=%s | clusters=%s | time_limit=%s",
-            len(problem.tasks),
+            "CBC solve started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s | time_limit=%s",
+            len(problem.jobs),
+            len(problem.job_dependencies),
             len(problem.cores),
             len(problem.clusters),
             self.time_limit_seconds,
@@ -35,10 +38,11 @@ class IlpSolverService(BaseSolver):
             logPath="cbc.log" if self.keep_files else None,
             timeLimit=self.time_limit_seconds,
         )
+
         start = timer()
         status_code = model.solve(solver)
-
         runtime_seconds = timer() - start
+
         status = pulp.LpStatus[status_code]
 
         logger.info(
@@ -55,7 +59,7 @@ class IlpSolverService(BaseSolver):
             problem_instance=problem,
             metadata={
                 "runtime_seconds": runtime_seconds,
-            }
+            },
         )
 
         return build_solution_response(problem, normalized_result)
@@ -71,6 +75,7 @@ class IlpSolverService(BaseSolver):
     ) -> SolverResult:
         if metadata is None:
             metadata = {}
+
         status = pulp.LpStatus[status_code]
         feasible = status in {"Optimal", "Feasible"}
 
@@ -81,36 +86,42 @@ class IlpSolverService(BaseSolver):
                 feasible=False,
                 objective=None,
                 makespan=None,
-                assignment={},
+                job_assignment={},
                 starts={},
                 finishes={},
                 core_overflows={},
                 cluster_overflows={},
                 raw_status=status_code,
                 runtime_seconds=metadata.get("runtime_seconds", 0),
+                metadata=metadata,
             )
+
         x = vars_dict["x"]
         s = vars_dict["s"]
         f = vars_dict["f"]
 
-        assignment = {}
-        for task in problem_instance.tasks:
+        job_assignment = {}
+
+        for job in problem_instance.jobs:
             assigned_core = next(
-                (core_id
-                 for core_id in task.eligible_cores
-                 if cls._solved_binary(x[task.id][core_id])
-                 ),
+                (
+                    core_id
+                    for core_id in job.eligible_cores
+                    if cls._solved_binary(x[job.id][core_id])
+                ),
                 None,
             )
-            assignment[task.id] = assigned_core
+
+            job_assignment[job.id] = assigned_core
 
         starts = {
-            task.id: cls._solved_number(s[task.id])
-            for task in problem_instance.tasks
+            job.id: cls._solved_number(s[job.id])
+            for job in problem_instance.jobs
         }
+
         finishes = {
-            task.id: cls._solved_number(f[task.id])
-            for task in problem_instance.tasks
+            job.id: cls._solved_number(f[job.id])
+            for job in problem_instance.jobs
         }
 
         raw_core_overflows = vars_dict["core_overflow"]
@@ -121,7 +132,10 @@ class IlpSolverService(BaseSolver):
 
         raw_cluster_overflows = vars_dict["cluster_overflow"]
         cluster_overflows = {
-            cluster.id: cls._solved_number(raw_cluster_overflows[cluster.id], default=0)
+            cluster.id: cls._solved_number(
+                raw_cluster_overflows[cluster.id],
+                default=0,
+            )
             for cluster in problem_instance.clusters
         }
 
@@ -131,14 +145,14 @@ class IlpSolverService(BaseSolver):
             feasible=True,
             objective=cls._solved_number(model.objective),
             makespan=cls._solved_number(vars_dict["cmax"]),
-
-            assignment=assignment,
+            job_assignment=job_assignment,
             starts=starts,
             finishes=finishes,
             core_overflows=core_overflows,
             cluster_overflows=cluster_overflows,
             raw_status=status_code,
-            runtime_seconds=metadata.get("runtime_seconds"),
+            runtime_seconds=metadata.get("runtime_seconds", 0),
+            metadata=metadata,
         )
 
     @staticmethod
