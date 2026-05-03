@@ -27,14 +27,16 @@ class CpSolverService(BaseSolver):
         solver.parameters.num_search_workers = self.num_workers
 
         logger.info(
-            "CP-SAT solve started | tasks=%s | cores=%s | clusters=%s | time_limit=%s",
-            len(problem.tasks),
+            "CP-SAT solve started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s | time_limit=%s",
+            len(problem.jobs),
+            len(problem.job_dependencies),
             len(problem.cores),
             len(problem.clusters),
             self.time_limit_seconds,
         )
 
         # solver.parameters.log_search_progress = True
+
         start = timer()
         status_code = solver.Solve(model)
         runtime_seconds = timer() - start
@@ -67,6 +69,9 @@ class CpSolverService(BaseSolver):
             problem_instance: ProblemInstance,
             metadata: dict = None,
     ) -> SolverResult:
+        if metadata is None:
+            metadata = {}
+
         status = solver.status_name(status_code)
         feasible = status_code in (cp_model.OPTIMAL, cp_model.FEASIBLE)
 
@@ -79,7 +84,7 @@ class CpSolverService(BaseSolver):
                 feasible=False,
                 objective=None,
                 makespan=None,
-                assignment={},
+                job_assignment={},
                 starts={},
                 finishes={},
                 core_overflows={},
@@ -87,36 +92,37 @@ class CpSolverService(BaseSolver):
                 raw_status=status_code,
                 runtime_seconds=metadata.get("runtime_seconds", 0),
                 metadata={
-                    "time_scale": time_scale
-                }
+                    "time_scale": time_scale,
+                },
             )
 
         x = vars_dict["x"]
         s = vars_dict["s"]
         f = vars_dict["f"]
 
-        assignment = {}
+        job_assignment = {}
 
-        for task in problem_instance.tasks:
+        for job in problem_instance.jobs:
             assigned_core = next(
                 (
                     core_id
-                    for core_id in task.eligible_cores
-                    if (task.id, core_id) in x and solver.BooleanValue(x[task.id, core_id])
+                    for core_id in job.eligible_cores
+                    if (job.id, core_id) in x
+                       and solver.BooleanValue(x[job.id, core_id])
                 ),
                 None,
             )
 
-            assignment[task.id] = assigned_core
+            job_assignment[job.id] = assigned_core
 
         starts = {
-            task.id: solver.Value(s[task.id]) / time_scale
-            for task in problem_instance.tasks
+            job.id: solver.Value(s[job.id]) / time_scale
+            for job in problem_instance.jobs
         }
 
         finishes = {
-            task.id: solver.Value(f[task.id]) / time_scale
-            for task in problem_instance.tasks
+            job.id: solver.Value(f[job.id]) / time_scale
+            for job in problem_instance.jobs
         }
 
         core_overflows = {
@@ -137,7 +143,7 @@ class CpSolverService(BaseSolver):
             feasible=True,
             objective=solver.ObjectiveValue(),
             makespan=makespan,
-            assignment=assignment,
+            job_assignment=job_assignment,
             starts=starts,
             finishes=finishes,
             core_overflows=core_overflows,

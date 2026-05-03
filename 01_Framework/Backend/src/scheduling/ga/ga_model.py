@@ -1,3 +1,4 @@
+import bisect
 import heapq
 import logging
 import time
@@ -12,26 +13,30 @@ logger = logging.getLogger(__name__)
 
 
 class GaModel:
-
     def __init__(self, problem_instance: ProblemInstance, time_limit_seconds: int = 100):
         self.problem_instance = problem_instance
-        self.tasks = {t.id: t for t in problem_instance.tasks}
-        self.task_ids = [t.id for t in problem_instance.tasks]
+        self.time_limit_seconds = time_limit_seconds
+
+        self.jobs = {j.id: j for j in problem_instance.jobs}
+        self.job_ids = [j.id for j in problem_instance.jobs]
+        self.job_index: Dict[str, int] = {
+            job_id: i for i, job_id in enumerate(self.job_ids)
+        }
 
         self.cores = {c.id: c for c in problem_instance.cores}
         self.core_ids = [c.id for c in problem_instance.cores]
-        self.task_index: Dict[str, int] = {tid: i for i, tid in enumerate(self.task_ids)}
 
         self.clusters = {cl.id: cl for cl in problem_instance.clusters}
         self.cluster_ids = [cl.id for cl in problem_instance.clusters]
 
         self.eligible_core_list: List[List[str]] = [
-            self.tasks[tid].eligible_cores[:] for tid in self.task_ids
+            self.jobs[job_id].eligible_cores[:] for job_id in self.job_ids
         ]
 
         self.predecessors: Dict[str, List[str]] = defaultdict(list)
         self.successors: Dict[str, List[str]] = defaultdict(list)
-        for dep in problem_instance.dependencies:
+
+        for dep in problem_instance.job_dependencies:
             self.predecessors[dep.successor].append(dep.predecessor)
             self.successors[dep.predecessor].append(dep.successor)
 
@@ -41,19 +46,36 @@ class GaModel:
             for comm in self.communications_path
         }
 
-        self.num_genes = 2 * len(self.tasks)
-        # Defining gene space
-        # Limiting values for PyGAD
+        self.terminal_jobs_by_chain_instance = self._find_terminal_jobs_by_chain_instance()
+        self.terminal_job_ids = {
+            job_id
+            for terminal_jobs in self.terminal_jobs_by_chain_instance.values()
+            for job_id in terminal_jobs
+        }
+
+        self.job_memory = {job.id: job.memory for job in problem_instance.jobs}
+        self.core_to_cluster = {c.id: c.cluster_id for c in problem_instance.cores}
+
+        self.duration_cache = {}
+        for job in problem_instance.jobs:
+            self.duration_cache[job.id] = {}
+            for core in problem_instance.cores:
+                wcet_scale = getattr(core, "wcet_scale", 1.0) or 1.0
+                self.duration_cache[job.id][core.id] = float(job.duration) * float(wcet_scale)
+
+        self.num_genes = 2 * len(self.jobs)
+
         self.gene_space = []
-        # Limit first T genes to eligible core range
+
+        # First J genes: assignment choice index.
         for eligible in self.eligible_core_list:
             self.gene_space.append(list(range(len(eligible))))
-        # Limit last T genes to priority [0.0, 1.0)
-        for _ in self.task_ids:
+
+        # Last J genes: priority value.
+        for _ in self.job_ids:
             self.gene_space.append({"low": 0.0, "high": 1.0})
 
     def solve(self, ga_properties):
-
         start_time = time.time()
 
         def on_generation(ga_instance):
@@ -66,7 +88,7 @@ class GaModel:
                     elapsed,
                 )
 
-            if elapsed >= getattr(self, "time_limit_seconds", 5000):
+            if elapsed >= self.time_limit_seconds:
                 return "stop"
 
         ga = pygad.GA(
@@ -76,186 +98,304 @@ class GaModel:
             gene_type=self._gene_types(),
             fitness_func=self.fitness_func,
             on_generation=on_generation,
+            random_mutation_max_val=1.0,
+            random_mutation_min_val=0.0,
         )
 
         ga.run()
 
         best_solution, best_fitness, _ = ga.best_solution()
+
         decoded = self.decode_solution(best_solution)
         decoded["fitness"] = best_fitness
         decoded["ga_metadata"] = {
             "generations_completed": ga.generations_completed,
-
         }
+
         return decoded
 
-    def decode_solution(self, solution):
-        assignment_list = self._decode_assignment(solution)
-        priority_list = self._decode_priority_order(solution)
+    def decode_solution(self, solution, current_generation=0):
+        job_assignment = self._decode_assignment(solution)
+        priority_order = self._decode_priority_order(solution)
 
-        starts, finishes = self._build_schedule(assignment_list, priority_list)
+        starts, finishes = self._build_schedule(job_assignment, priority_order)
 
         c_max = max(finishes.values()) if finishes else 0
-        core_overflows, cluster_overflows = self._calculate_mem(assignment_list)
-        comm_cost = self._calculate_comm_cost(assignment_list)
+
+        core_overflows, cluster_overflows = self._calculate_mem(job_assignment)
+        comm_cost = self._calculate_comm_cost(job_assignment)
+
+        precedence_violation = self._calculate_precedence_violation(
+            starts=starts,
+            finishes=finishes,
+        )
+
+        deadline_violation = self._calculate_terminal_deadline_violation(finishes)
+
+        same_core_overlap_violation = self._calculate_same_core_overlap_violation(starts, finishes, job_assignment)
+
+        violation = (
+                precedence_violation
+                + deadline_violation
+                + same_core_overlap_violation
+        )
+
+        # Increase violation cost in later generations
+        base_weight = 100
+        growth_factor = min(1.0, current_generation / 500.0)
+        violation_weight = base_weight + (999900 * growth_factor)
+        violation_cost = violation_weight * violation
 
         weight_scalars = self.problem_instance.memory_penalty_scale
+
         total_cost = (
                 c_max
                 + weight_scalars.get("core_overflow_scale", 1) * sum(core_overflows.values())
                 + weight_scalars.get("cluster_overflow_scale", 1) * sum(cluster_overflows.values())
                 + comm_cost
+                + violation_cost
         )
 
         return {
-            "assignment": assignment_list,
-            "priority_order": priority_list,
+            "job_assignment": job_assignment,
+            "priority_order": priority_order,
             "starts": starts,
             "finishes": finishes,
             "cmax": c_max,
             "core_overflows": core_overflows,
             "cluster_overflows": cluster_overflows,
             "comm_cost": comm_cost,
+            "deadline_violation": deadline_violation,
+            "precedence_violation": precedence_violation,
+            "constraint_violation": violation,
+            "constraint_violation_cost": violation_cost,
             "total_cost": total_cost,
         }
 
+    # ------------------------------------------------------------------
     # PyGAD
-    ######################################################################
+    # ------------------------------------------------------------------
+
     def fitness_func(self, ga_instance, solution, solution_idx):
-        decoded = self.decode_solution(solution)
+        decoded = self.decode_solution(solution, ga_instance.generations_completed)
         cost = decoded["total_cost"]
         return 1.0 / (1.0 + cost)
 
-
     def _gene_types(self):
         types = []
-        for _ in range(len(self.tasks)):
+
+        for _ in range(len(self.jobs)):
             types.append(int)
-        for _ in range(len(self.tasks)):
+
+        for _ in range(len(self.jobs)):
             types.append(float)
+
         return types
 
-    # DECODING METHODS
-    #######################################################################
+    # ------------------------------------------------------------------
+    # Decoding
+    # ------------------------------------------------------------------
+
     def _decode_assignment(self, solution) -> Dict[str, str]:
-        """
-        First T genes are assignment choice indices of each task eligible core list
-        """
         assignment: Dict[str, str] = {}
 
-        for idx, tid in enumerate(self.task_ids):
+        for idx, job_id in enumerate(self.job_ids):
             eligible_cores = self.eligible_core_list[idx]
 
-            # Convert choice to int and limit to [0, len(eligible)]
             choice_idx = int(round(solution[idx]))
             choice_idx = max(0, min(choice_idx, len(eligible_cores) - 1))
 
-            assignment[tid] = eligible_cores[choice_idx]
+            assignment[job_id] = eligible_cores[choice_idx]
+
         return assignment
 
     def _decode_priority_order(self, solution) -> List[str]:
-        """
-        Last T genes are priority (float) values. Higher value => higher priority
-        """
         prio_values = []
-        offset = len(self.task_ids)
+        offset = len(self.job_ids)
 
-        for idx, tid in enumerate(self.task_ids):
+        for idx, job_id in enumerate(self.job_ids):
             prio_value = float(solution[idx + offset])
-            prio_values.append((tid, prio_value))
+            prio_values.append((job_id, prio_value))
 
-        # sort by descending priority; task index as tiebreaker
-        prio_values.sort(key=lambda x: (-x[1], self.task_index[x[0]]))
-        return [tid for tid, _ in prio_values]
+        prio_values.sort(key=lambda x: (-x[1], self.job_index[x[0]]))
+
+        return [job_id for job_id, _ in prio_values]
 
     def _build_schedule(
             self,
             assignment: Dict[str, str],
-            priority_order: List[str]
+            priority_order: List[str],
     ) -> Tuple[Dict[str, float], Dict[str, float]]:
-        """
-        Scheduling decoder
-        """
         starts: Dict[str, float] = {}
         finishes: Dict[str, float] = {}
 
-        core_available: Dict[str, float] = {cid: 0 for cid in self.core_ids}
-        priority_rank = {tid: rank for rank, tid in enumerate(priority_order)}
+        intervals_by_core: Dict[str, List[Tuple[float, float, str]]] = {
+            core_id: [] for core_id in self.core_ids
+        }
+
+        # Forcibly schedule chain root jobs
+        anchored_job_ids = set()
+
+        for job_id in self.job_ids:
+            job = self.jobs[job_id]
+
+            if job.is_chain_root and job.chain_id is not None:
+                core_id = assignment[job_id]
+                duration = self.duration_cache[job_id][core_id]
+
+                start = float(job.release_time)
+                finish = start + duration
+
+                starts[job_id] = start
+                finishes[job_id] = finish
+                anchored_job_ids.add(job_id)
+
+                intervals_by_core[core_id].append((start, finish, job_id))
+
+        # Schedule rest (predecessor jobs) wherever an interval in core is available
+        for core_id in self.core_ids:
+            intervals_by_core[core_id].sort(key=lambda item: (item[0], item[1], item[2]))
+
+        priority_rank = {
+            job_id: rank for rank, job_id in enumerate(priority_order)
+        }
 
         remaining_preds = {
-            tid: len(self.predecessors.get(tid, []))
-            for tid in self.task_ids
+            job_id: len(self.predecessors.get(job_id, []))
+            for job_id in self.job_ids
         }
 
         pred_max_finish = {
-            tid: 0.0
-            for tid in self.task_ids
+            job_id: 0.0 for job_id in self.job_ids
         }
 
         ready_heap = []
 
-        for tid in self.task_ids:
-            if remaining_preds[tid] == 0:
+        for job_id in self.job_ids:
+            if remaining_preds[job_id] == 0:
                 heapq.heappush(
                     ready_heap,
-                    (priority_rank[tid], self.task_index[tid], tid)
+                    (
+                        self.jobs[job_id].release_time,
+                        priority_rank[job_id],
+                        self.job_index[job_id],
+                        job_id,
+                    ),
                 )
-        scheduled_count = 0
+
+        visited = set()
 
         while ready_heap:
-            _, _, tid = heapq.heappop(ready_heap)
+            _, _, _, job_id = heapq.heappop(ready_heap)
 
-            assigned_core = assignment[tid]
+            if job_id in visited:
+                continue
 
-            min_start = getattr(self.tasks[tid], "min_start", 0) or 0
-            start = max(
-                core_available[assigned_core],
-                pred_max_finish[tid],
-                min_start,
-            )
+            visited.add(job_id)
 
-            wcet_scale = getattr(self.cores[assigned_core], "wcet_scale", 1.0) or 1.0
-            finish = start + self.tasks[tid].duration * wcet_scale
+            job = self.jobs[job_id]
 
-            starts[tid] = start
-            finishes[tid] = finish
-            core_available[assigned_core] = finish
-            scheduled_count += 1
+            if job_id not in anchored_job_ids:
+                core_id = assignment[job_id]
+                duration = self.duration_cache[job_id][core_id]
 
-            for succ in self.successors.get(tid, []):
-                if finish > pred_max_finish[succ]:
-                    pred_max_finish[succ] = finish
-                remaining_preds[succ] -= 1
-                if remaining_preds[succ] == 0:
+                earliest_start = max(
+                    float(job.release_time),
+                    pred_max_finish[job_id],
+                )
+
+                start = self._find_earliest_gap(
+                    intervals=intervals_by_core[core_id],
+                    earliest_start=earliest_start,
+                    duration=duration,
+                )
+                finish = start + duration
+
+                starts[job_id] = start
+                finishes[job_id] = finish
+
+                new_interval = (start, finish, job_id)
+                bisect.insort(intervals_by_core[core_id], new_interval)
+
+            finish = finishes[job_id]
+
+            for successor in self.successors.get(job_id, []):
+                if finish > pred_max_finish[successor]:
+                    pred_max_finish[successor] = finish
+
+                remaining_preds[successor] -= 1
+
+                if remaining_preds[successor] == 0:
                     heapq.heappush(
                         ready_heap,
-                        (priority_rank[succ], self.task_index[succ], succ)
+                        (
+                            max(
+                                self.jobs[successor].release_time,
+                                pred_max_finish[successor],
+                            ),
+                            priority_rank[successor],
+                            self.job_index[successor],
+                            successor,
+                        ),
                     )
 
-        if scheduled_count != len(self.task_ids):
-            raise RuntimeError("Cycle or unschedulable dependency graph during GA decoding")
+        if len(visited) != len(self.job_ids):
+            raise RuntimeError(
+                "Cycle or unschedulable dependency graph during GA decoding"
+            )
 
         return starts, finishes
 
-    # COST METHODS
-    ##########################################################################
-    def _calculate_mem(self, assignment: Dict[str, str]) -> Tuple[
-        Dict[str, float], Dict[str, float]]:
-        mem_by_core = {cid: 0 for cid in self.core_ids}
-        mem_by_cluster = {clid: 0 for clid in self.cluster_ids}
-        for tid, cid in assignment.items():
-            mem_by_core[cid] += self.tasks[tid].memory
-            clid = self.cores[cid].cluster_id
-            mem_by_cluster[clid] += self.tasks[tid].memory
+    def _find_earliest_gap(
+            self,
+            intervals: List[Tuple[float, float, str]],
+            earliest_start: float,
+            duration: float,
+    ) -> float:
+        candidate = earliest_start
+
+        for start, finish, _ in intervals:
+            if candidate + duration <= start:
+                return candidate
+
+            if candidate < finish:
+                candidate = finish
+
+        return candidate
+
+    # ------------------------------------------------------------------
+    # Cost methods
+    # ------------------------------------------------------------------
+
+    def _calculate_mem(
+            self,
+            assignment: Dict[str, str],
+    ) -> Tuple[Dict[str, float], Dict[str, float]]:
+        mem_by_core = {core_id: 0.0 for core_id in self.core_ids}
+        mem_by_cluster = {cluster_id: 0.0 for cluster_id in self.cluster_ids}
+
+        for job_id, core_id in assignment.items():
+            job_memory = self.job_memory[job_id]
+
+            mem_by_core[core_id] += job_memory
+
+            cluster_id = self.core_to_cluster[core_id]
+            mem_by_cluster[cluster_id] += job_memory
 
         core_overflow = {}
         cluster_overflow = {}
-        for cid in self.core_ids:
-            core_overflow[cid] = max(0.0, mem_by_core[cid] - self.cores[cid].memory_budget)
 
-        for clid in self.cluster_ids:
-            cluster_overflow[clid] = max(0.0,
-                                         mem_by_cluster[clid] - self.clusters[clid].memory_budget)
+        for core_id in self.core_ids:
+            core_overflow[core_id] = max(
+                0.0,
+                mem_by_core[core_id] - self.cores[core_id].memory_budget,
+            )
+
+        for cluster_id in self.cluster_ids:
+            cluster_overflow[cluster_id] = max(
+                0.0,
+                mem_by_cluster[cluster_id] - self.clusters[cluster_id].memory_budget,
+            )
 
         return core_overflow, cluster_overflow
 
@@ -268,9 +408,10 @@ class GaModel:
 
         total = 0.0
 
-        for dep in self.problem_instance.dependencies:
+        for dep in self.problem_instance.job_dependencies:
             i, j = dep.predecessor, dep.successor
             core_i, core_j = assignment[i], assignment[j]
+
             if (core_i, core_j) in explicit_path_penalty:
                 total += explicit_path_penalty[(core_i, core_j)]
             elif core_i == core_j:
@@ -282,91 +423,115 @@ class GaModel:
 
         return total
 
-#
-# if __name__ == "__main__":
-#     problem = ProblemInstance(
-#         tasks=[
-#             Task(id="A", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="B", duration=2, memory=5, eligible_cores=["0", "1"]),
-#             Task(id="C", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="D", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="E", duration=2, memory=5, eligible_cores=["0", "1"]),
-#             Task(id="F", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="A2", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="B2", duration=2, memory=5, eligible_cores=["0", "1"]),
-#             Task(id="C2", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="D2", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="E2", duration=2, memory=5, eligible_cores=["0", "1"]),
-#             Task(id="F2", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="A3", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="B3", duration=2, memory=5, eligible_cores=["0", "1"]),
-#             Task(id="C3", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="D3", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="E3", duration=2, memory=5, eligible_cores=["0", "1"]),
-#             Task(id="F3", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="A4", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="B4", duration=2, memory=5, eligible_cores=["0", "1"]),
-#             Task(id="C4", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="D4", duration=3, memory=4, eligible_cores=["0", "1", "2", "3"]),
-#             Task(id="E4", duration=2, memory=5, eligible_cores=["0", "1"]),
-#             Task(id="F4", duration=4, memory=3, eligible_cores=["0", "1", "2", "3"]),
-#         ],
-#         cores=[
-#             Core(id="0", memory_budget=30),
-#             Core(id="1", memory_budget=30),
-#             Core(id="2", memory_budget=30),
-#             Core(id="3", memory_budget=30),
-#         ],
-#         dependencies=[
-#             Dependency(predecessor="A", successor="C"),
-#             Dependency(predecessor="A", successor="B"),
-#             Dependency(predecessor="C", successor="E"),
-#             Dependency(predecessor="E", successor="F"),
-#             Dependency(predecessor="A2", successor="C2"),
-#             Dependency(predecessor="A2", successor="B2"),
-#             Dependency(predecessor="C2", successor="E2"),
-#             Dependency(predecessor="E2", successor="F2"),
-#         ],
-#         communications=[
-#             CommunicationPath(source="A", target="C", latency=2),
-#             CommunicationPath(source="A", target="B", latency=4),
-#             CommunicationPath(source="C", target="E", latency=2),
-#             CommunicationPath(source="E", target="F", latency=4),
-#             CommunicationPath(source="A2", target="C2", latency=2),
-#             CommunicationPath(source="A2", target="B2", latency=4),
-#             CommunicationPath(source="C2", target="E2", latency=2),
-#             CommunicationPath(source="E2", target="F2", latency=4),
-#         ],
-#         memory_penalty_weight=10.0,
-#     )
-#
-#     start = time.perf_counter()
-#     solver = GaModel(problem)
-#     result = solver.solve(
-#         {
-#             "num_generations": 2000,
-#             "num_parents_mating": 20,
-#             "sol_per_pop": 80,
-#             "parent_selection_type": "tournament",
-#             "keep_parents": 1,
-#             "crossover_type": "single_point",
-#             "K_tournament": 3,
-#             "mutation_type": "random",
-#             "mutation_percent_genes": 10,
-#             "random_seed": 42
-#         }
-#
-#     )
-#
-#     finish = time.perf_counter()
-#
-#     print(f"\n Completed in {finish - start:0.4f} seconds")
-#     print("Best schedule:")
-#     print("Assignment:", result["assignment"])
-#     print("Priority order:", result["priority_order"])
-#     print("Starts:", result["starts"])
-#     print("Finishes:", result["finishes"])
-#     print("Makespan:", result["cmax"])
-#     print("Overflow:", result["mem_overflow"])
-#     print("Comm cost:", result["comm_cost"])
-#     print("Total cost:", result["total_cost"])
+    #################################################
+    # Violation calculations
+    ################################################
+    def _calculate_terminal_deadline_violation(
+            self,
+            finishes: Dict[str, float],
+    ) -> float:
+        violation = 0.0
+
+        for terminal_job_ids in self.terminal_jobs_by_chain_instance.values():
+            for job_id in terminal_job_ids:
+                deadline = self.jobs[job_id].absolute_deadline
+
+                if deadline is None:
+                    continue
+
+                finish = finishes.get(job_id)
+
+                if finish is None:
+                    continue
+
+                violation += max(0.0, finish - float(deadline))
+
+        return violation
+
+    def _calculate_precedence_violation(
+            self,
+            starts: Dict[str, float],
+            finishes: Dict[str, float],
+    ) -> float:
+        violation = 0.0
+
+        for dep in self.problem_instance.job_dependencies:
+            pred_finish = finishes.get(dep.predecessor)
+            succ_start = starts.get(dep.successor)
+
+            if pred_finish is None or succ_start is None:
+                continue
+
+            if succ_start < pred_finish:
+                violation += pred_finish - succ_start
+
+        return violation
+
+    def _constraint_violation_weight(self) -> float:
+        return self.problem_instance.memory_penalty_scale.get(
+            "constraint_violation_scale",
+            self.problem_instance.memory_penalty_scale.get(
+                "strict_chain_violation_scale",
+                1_000_000,
+            ),
+        )
+
+    def _calculate_same_core_overlap_violation(
+            self,
+            starts: Dict[str, float],
+            finishes: Dict[str, float],
+            assignment: Dict[str, str],
+    ) -> float:
+        intervals_by_core: Dict[str, List[Tuple[float, float, str]]] = {
+            core_id: [] for core_id in self.core_ids
+        }
+
+        for job_id, core_id in assignment.items():
+            start = starts.get(job_id)
+            finish = finishes.get(job_id)
+
+            if start is None or finish is None:
+                continue
+
+            intervals_by_core[core_id].append((float(start), float(finish), job_id))
+
+        violation = 0.0
+
+        for core_id, intervals in intervals_by_core.items():
+            intervals.sort(key=lambda item: (item[0], item[1], item[2]))
+
+            previous_finish = None
+
+            for start, finish, job_id in intervals:
+                if previous_finish is not None and start < previous_finish:
+                    violation += previous_finish - start
+
+                if previous_finish is None or finish > previous_finish:
+                    previous_finish = finish
+
+        return violation
+
+    def _find_terminal_jobs_by_chain_instance(self) -> Dict[tuple[str, int], List[str]]:
+        chain_to_terminal_task_id = {
+            tc.id: tc.task_ids[-1]
+            for tc in self.problem_instance.task_chains
+            if tc.task_ids
+        }
+
+        terminal_jobs_by_chain_instance: Dict[tuple[str, int], List[str]] = defaultdict(list)
+
+        for job_id, job in self.jobs.items():
+            if job.chain_id is None or job.instance_index is None:
+                continue
+
+            terminal_task_id = chain_to_terminal_task_id.get(job.chain_id)
+
+            if terminal_task_id is None:
+                continue
+
+            if job.task_id == terminal_task_id:
+                terminal_jobs_by_chain_instance[
+                    (job.chain_id, job.instance_index)
+                ].append(job_id)
+
+        return dict(terminal_jobs_by_chain_instance)
