@@ -26,7 +26,6 @@ class CommunicationPath(BaseModel):
     penalty: int = 0
     notes: str = ""
 
-
 class Core(BaseModel):
     id: str
     name: str
@@ -55,12 +54,12 @@ class MemoryNode(BaseModel):
     capacity: int
     notes: str = ""
 
-
 class ProblemInstance(BaseModel):
     tasks: List[Task] = Field(default_factory=list)
     dependencies: List[Dependency] = Field(default_factory=list)
     communication_paths: List[CommunicationPath] = Field(default_factory=list)
     clusters: List[Cluster] = Field(default_factory=list)
+    # memory_nodes currently unused.
     memory_nodes: List[MemoryNode] = Field(default_factory=list)
     cores: List[Core] = Field(default_factory=list)
 
@@ -75,8 +74,7 @@ class ProblemInstance(BaseModel):
         default_factory=lambda: {
             "intra_core_weight": 0,
             "inter_core_weight": 8,
-            "inter_cluster_weight": 15,
-            "inter_app_weight": 100,  # ignored since task set will not use cross-domain
+            "inter_cluster_weight": 15
         }
     )
 

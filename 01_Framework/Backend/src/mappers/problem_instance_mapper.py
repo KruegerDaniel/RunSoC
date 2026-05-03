@@ -1,12 +1,14 @@
 import logging
 from collections import defaultdict, deque
 from enum import Enum
+from typing import Set
 
-from schemas.schemas import ProblemInstance, Cluster, Core, MemoryNode, Task, Dependency
+from schemas.schemas import ProblemInstance, Cluster, Core, MemoryNode, Task, Dependency, CommunicationPath
 
 logger = logging.getLogger(__name__)
 # If True, then throws error on missing execution_domain
 IS_STRICT_DOMAIN = False
+
 
 class PlatformObjectType(str, Enum):
     CLUSTER = "cluster"
@@ -36,8 +38,8 @@ class ProblemInstanceMapper:
             raise ValueError(
                 f"Number of cores in the problem instance ({len(cores)}) does not match the number of cores specified in the request ({num_cores}).")
 
-        #memory_nodes = self._extract_memory_nodes(data, cl_ids=[c.id for c in clusters])
-        comms = self._extract_comms(data)
+        # memory_nodes = self._extract_memory_nodes(data, cl_ids=[c.id for c in clusters])
+        comms = self._extract_comms(data, set([c.id for c in cores]))
 
         tasks, dependencies = self._extract_taskset(data)
         tasks = self._map_task_to_domain_core(tasks, cores)
@@ -66,7 +68,6 @@ class ProblemInstanceMapper:
             "intra_core_weight": comms_penalty_weight.get("intraCoreWeight", 0),
             "inter_core_weight": comms_penalty_weight.get("interCoreWeight", 8),
             "inter_cluster_weight": comms_penalty_weight.get("interClusterWeight", 15),
-            "inter_app_weight": comms_penalty_weight.get("interAppWeight", 15),
         }
 
         mem_penalty_scale = config.get("memoryPenaltyScale", {})
@@ -86,7 +87,7 @@ class ProblemInstanceMapper:
             base_cluster = Cluster(
                 id=cl.get("id"),
                 name=cl.get("name"),
-                execution_domain=cl.get("executionDomain"),
+                type=cl.get("type"),
                 memory_budget=sum(m.get("sizeKB", 0) for m in memory),
                 notes=cl.get("notes", ""),
             )
@@ -181,15 +182,35 @@ class ProblemInstanceMapper:
             memory_nodes.append(memory_node)
         return memory_nodes
 
-    def _extract_comms(self, data: dict):
+    def _extract_comms(self, data: dict, cores: Set[str]):
         config = data.get("config", {})
-
         is_generate_mode = config.get("generateComms", True)
-        if not is_generate_mode:
-            num_pairings = len(self.problem_instance.cores) * (
-                    len(self.problem_instance.cores) - 1) // 2
-        # todo: implement later. Assuming is_generate_mode
-        return []
+        raw_communication_paths = data.get("communicationPaths", [])
+        num_cores = len(cores)
+        fully_connected_graph_edge_count = (num_cores * (num_cores - 1)) // 2
+        if not is_generate_mode and len(raw_communication_paths) < fully_connected_graph_edge_count:
+            raise ValueError(
+                f"Communication paths specified in the request ({len(raw_communication_paths)}) "
+                f"is less than the number of fully connected graph ({fully_connected_graph_edge_count})."
+            )
+
+        communication_paths = []
+        for comm in raw_communication_paths:
+            source = comm.get("source")
+            target = comm.get("target")
+            if source not in cores or target not in cores:
+                raise ValueError(
+                    f"Communication path {source} -> {target} contains invalid core IDs."
+                )
+            communication_paths.append(
+                CommunicationPath(
+                    source=source,
+                    target=target,
+                    penalty=comm.get("penalty")
+                )
+            )
+
+        return communication_paths
 
     def _extract_taskset(self, data: dict, dup_id_suffix: str = "_2"):
         """
@@ -251,7 +272,7 @@ class ProblemInstanceMapper:
                         task_type=curr_task.task_type,
                         duration=curr_task.duration,
                         period=curr_task.period,
-                        min_start=curr_task.period, # Since min_start = 0 + 1 * prev_task.period
+                        min_start=curr_task.period,  # Since min_start = 0 + 1 * prev_task.period
                         memory=curr_task.memory,
                         eligible_cores=list(curr_task.eligible_cores),
                     )
