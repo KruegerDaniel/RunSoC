@@ -72,7 +72,7 @@ def _parse_task(raw_task: dict) -> Task:
 def _map_tasks_to_domain_cores(
         tasks: list[Task],
         cores: list[Core],
-        strict_domain_check: bool = True,
+        strict_domain_check: bool = False,
 ) -> list[Task]:
     core_domain_map = defaultdict(list)
 

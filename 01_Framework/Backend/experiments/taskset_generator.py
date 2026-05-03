@@ -88,7 +88,7 @@ def generate_chain(
 
     root_period = random_period()
     if root_period == "event_angle_sync":
-        root_period = random.choice([1, 2, 5, 10, 20, 50, 100, 200, 1000])
+        root_period = random.choice([1000, 2000, 5000, 10_000, 20_000, 50_000, 100_000, 200_000, 1_000_000])
 
     domain = random_domain()
     previous_id = None
