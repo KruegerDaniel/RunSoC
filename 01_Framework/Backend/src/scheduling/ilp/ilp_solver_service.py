@@ -5,7 +5,7 @@ import pulp
 
 from scheduling.base_solver import BaseSolver
 from scheduling.extractor import build_solution_response
-from scheduling.ilp.model_builder import build_model
+from scheduling.ilp.ilp_model_builder import build_model
 from schemas.schemas import ProblemInstance
 from schemas.solver_result import SolverResult
 from utils.numerical_util import clean_num
@@ -16,20 +16,31 @@ logger = logging.getLogger(__name__)
 class IlpSolverService(BaseSolver):
     name = "CBC"
 
-    def __init__(self, time_limit_seconds: int = 5000, keep_files: bool = False):
+    def __init__(self, time_limit_seconds: int = 30, keep_files: bool = False, threads: int = 8):
         self.time_limit_seconds = time_limit_seconds
         self.keep_files = keep_files
+        self.threads = threads
 
     def solve(self, problem: ProblemInstance) -> dict:
+        logger.info(
+            "CBC model building started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s",
+            len(problem.jobs),
+            len(problem.job_dependencies),
+            len(problem.cores),
+            len(problem.clusters),
+        )
+        startTime = timer()
         model, variables = build_model(problem)
+        runtime_model_building_seconds = timer() - startTime
 
         logger.info(
-            "CBC solve started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s | time_limit=%s",
+            "CBC solve started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s | time_limit=%s | threads=%s",
             len(problem.jobs),
             len(problem.job_dependencies),
             len(problem.cores),
             len(problem.clusters),
             self.time_limit_seconds,
+            self.threads,
         )
 
         solver = pulp.PULP_CBC_CMD(
@@ -37,11 +48,13 @@ class IlpSolverService(BaseSolver):
             keepFiles=self.keep_files,
             logPath="cbc.log" if self.keep_files else None,
             timeLimit=self.time_limit_seconds,
+            threads=self.threads,
         )
 
-        start = timer()
+        start_solve = timer()
         status_code = model.solve(solver)
-        runtime_seconds = timer() - start
+        runtime_seconds = timer() - startTime
+        solve_time = timer() - start_solve
 
         status = pulp.LpStatus[status_code]
 
@@ -59,6 +72,8 @@ class IlpSolverService(BaseSolver):
             problem_instance=problem,
             metadata={
                 "runtime_seconds": runtime_seconds,
+                "model_building_seconds": runtime_model_building_seconds,
+                "solve_time": solve_time,
             },
         )
 

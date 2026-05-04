@@ -36,15 +36,13 @@ def _lcm_many(values: list[int]) -> int:
     return reduce(_lcm, values, 1)
 
 
-def build_model_cpsat(problem: ProblemInstance):
+def build_model_cpsat_global(problem: ProblemInstance):
     model = cp_model.CpModel()
 
-    tasks = {t.id: t for t in problem.tasks}
     jobs = {j.id: j for j in problem.jobs}
     cores = {c.id: c for c in problem.cores}
     clusters = {c.id: c for c in problem.clusters}
 
-    task_ids = list(tasks.keys())
     job_ids = list(jobs.keys())
     core_ids = list(cores.keys())
     cluster_ids = list(clusters.keys())
@@ -81,6 +79,7 @@ def build_model_cpsat(problem: ProblemInstance):
 
     # -----------------------------
     # Integer scaling
+    # CP-SAT is integer-only.
     # -----------------------------
     duration_values = []
     for job in problem.jobs:
@@ -143,27 +142,7 @@ def build_model_cpsat(problem: ProblemInstance):
         core_to_cluster[core.id] = core.cluster_id
 
     # -----------------------------
-    # Variables: Task Binding
-    # Partitioned Scheduling Enforcer
-    # -----------------------------
-    y = {}
-    for t_id in task_ids:
-        task = tasks[t_id]
-        eligible = task.eligible_cores
-        assigned_task_core_vars = []
-
-        for core_id in core_ids:
-            if core_id not in eligible:
-                continue
-
-            y[t_id, core_id] = model.NewBoolVar(f"y_{t_id}_{core_id}")
-            assigned_task_core_vars.append(y[t_id, core_id])
-
-        if assigned_task_core_vars:
-            model.AddExactlyOne(assigned_task_core_vars)
-
-    # -----------------------------
-    # Variables: Job Scheduling
+    # Variables
     # -----------------------------
     x = {}
     s = {}
@@ -177,31 +156,43 @@ def build_model_cpsat(problem: ProblemInstance):
 
     for i in job_ids:
         job = jobs[i]
+
         release_tick = job.release_time * time_scale
 
-        s[i] = model.NewIntVar(release_tick, horizon, f"s_{i}")
-        f[i] = model.NewIntVar(0, horizon, f"f_{i}")
+        s[i] = model.NewIntVar(
+            release_tick,
+            horizon,
+            f"s_{i}",
+        )
 
-        eligible = tasks[job.task_id].eligible_cores
+        f[i] = model.NewIntVar(
+            0,
+            horizon,
+            f"f_{i}",
+        )
+
+        eligible = job.eligible_cores
+        assigned_core_vars = []
 
         for core_id in core_ids:
             if core_id not in eligible:
                 continue
 
             x[i, core_id] = model.NewBoolVar(f"x_{i}_{core_id}")
-
-            # --- CRITICAL CHANGE ---
-            # Channel the Job assignment (x) directly to the Task assignment (y).
-            # This guarantees partitioned scheduling and removes enormous symmetry.
-            model.Add(x[i, core_id] == y[job.task_id, core_id])
+            assigned_core_vars.append(x[i, core_id])
 
             dur_ic = scaled_duration[i, core_id]
 
             s_local[i, core_id] = model.NewIntVar(
-                release_tick, horizon, f"s_{i}_{core_id}"
+                release_tick,
+                horizon,
+                f"s_{i}_{core_id}",
             )
+
             f_local[i, core_id] = model.NewIntVar(
-                0, horizon, f"f_{i}_{core_id}"
+                0,
+                horizon,
+                f"f_{i}_{core_id}",
             )
 
             intervals[i, core_id] = model.NewOptionalIntervalVar(
@@ -214,13 +205,18 @@ def build_model_cpsat(problem: ProblemInstance):
 
             intervals_per_core[core_id].append(intervals[i, core_id])
 
+            # Channel global start/finish to selected local start/finish.
             model.Add(s[i] == s_local[i, core_id]).OnlyEnforceIf(x[i, core_id])
             model.Add(f[i] == f_local[i, core_id]).OnlyEnforceIf(x[i, core_id])
 
+            # Interval end consistency.
             model.Add(
                 f_local[i, core_id] == s_local[i, core_id] + dur_ic
             ).OnlyEnforceIf(x[i, core_id])
 
+        model.AddExactlyOne(assigned_core_vars)
+
+        # Strict periodic task-chain root start.
         if job.is_chain_root and job.chain_id is not None:
             model.Add(s[i] == release_tick)
 
@@ -236,9 +232,11 @@ def build_model_cpsat(problem: ProblemInstance):
     for key, terminal_job_ids in terminal_jobs_by_chain_instance.items():
         for terminal_job_id in terminal_job_ids:
             terminal_job = jobs[terminal_job_id]
+
             if terminal_job.absolute_deadline is not None:
                 model.Add(
-                    f[terminal_job_id] <= terminal_job.absolute_deadline * time_scale
+                    f[terminal_job_id]
+                    <= terminal_job.absolute_deadline * time_scale
                 )
 
     # -----------------------------
@@ -259,58 +257,66 @@ def build_model_cpsat(problem: ProblemInstance):
 
     # -----------------------------
     # Core / cluster memory overflow
-    # CALCULATED AT THE TASK LEVEL
+    # Equivalent to:
+    # used <= budget + overflow
+    # overflow >= 0
     # -----------------------------
     core_overflow = {}
     cluster_overflow = {}
 
     for core_id in core_ids:
         max_possible_mem = sum(
-            tasks[t_id].memory
-            for t_id in task_ids
-            if core_id in tasks[t_id].eligible_cores
+            jobs[i].memory
+            for i in job_ids
+            if core_id in jobs[i].eligible_cores
         )
 
         core_overflow[core_id] = model.NewIntVar(
-            0, max_possible_mem, f"core_overflow_{core_id}"
+            0,
+            max_possible_mem,
+            f"core_overflow_{core_id}",
         )
 
         used_memory = sum(
-            tasks[t_id].memory * y[t_id, core_id]
-            for t_id in task_ids
-            if (t_id, core_id) in y
+            jobs[i].memory * x[i, core_id]
+            for i in job_ids
+            if (i, core_id) in x
         )
 
         model.Add(
-            used_memory <= cores[core_id].memory_budget + core_overflow[core_id]
+            used_memory
+            <= cores[core_id].memory_budget + core_overflow[core_id]
         )
 
     for cluster_id in cluster_ids:
         max_possible_mem = sum(
-            tasks[t_id].memory
-            for t_id in task_ids
+            jobs[i].memory
+            for i in job_ids
             for core_id in cluster_to_cores[cluster_id]
-            if (t_id, core_id) in y
+            if (i, core_id) in x
         )
 
         cluster_overflow[cluster_id] = model.NewIntVar(
-            0, max_possible_mem, f"cluster_overflow_{cluster_id}"
+            0,
+            max_possible_mem,
+            f"cluster_overflow_{cluster_id}",
         )
 
         used_memory = sum(
-            tasks[t_id].memory * y[t_id, core_id]
-            for t_id in task_ids
+            jobs[i].memory * x[i, core_id]
+            for i in job_ids
             for core_id in cluster_to_cores[cluster_id]
-            if (t_id, core_id) in y
+            if (i, core_id) in x
         )
 
         model.Add(
-            used_memory <= clusters[cluster_id].memory_budget + cluster_overflow[cluster_id]
+            used_memory
+            <= clusters[cluster_id].memory_budget
+            + cluster_overflow[cluster_id]
         )
 
     # -----------------------------
     # Communication penalty
-    # CALCULATED ON TASK DEPENDENCIES
     # -----------------------------
     explicit_path_penalty = {
         (comm.source, comm.target): comm.penalty
@@ -325,21 +331,18 @@ def build_model_cpsat(problem: ProblemInstance):
     z = {}
     comm_penalty_terms = []
 
-    for dep in problem.dependencies:
-        t1, t2 = dep.predecessor, dep.successor
+    for dep in problem.job_dependencies:
+        i, j = dep.predecessor, dep.successor
 
-        for c1 in tasks[t1].eligible_cores:
-            for c2 in tasks[t2].eligible_cores:
-                if (t1, c1) not in y or (t2, c2) not in y:
-                    continue
-
-                z[t1, t2, c1, c2] = model.NewBoolVar(
-                    f"z_{t1}_{t2}_{c1}_{c2}"
+        for c1 in jobs[i].eligible_cores:
+            for c2 in jobs[j].eligible_cores:
+                z[i, j, c1, c2] = model.NewBoolVar(
+                    f"z_{i}_{j}_{c1}_{c2}"
                 )
 
                 model.AddMultiplicationEquality(
-                    z[t1, t2, c1, c2],
-                    [y[t1, c1], y[t2, c2]],
+                    z[i, j, c1, c2],
+                    [x[i, c1], x[j, c2]],
                 )
 
                 if (c1, c2) in explicit_path_penalty:
@@ -352,7 +355,7 @@ def build_model_cpsat(problem: ProblemInstance):
                     penalty = inter_cluster_weight
 
                 if penalty != 0:
-                    comm_penalty_terms.append(penalty * z[t1, t2, c1, c2])
+                    comm_penalty_terms.append(penalty * z[i, j, c1, c2])
 
     core_overflow_scale = problem.memory_penalty_scale.get("core_overflow_scale", 1)
     cluster_overflow_scale = problem.memory_penalty_scale.get("cluster_overflow_scale", 1)
@@ -367,7 +370,6 @@ def build_model_cpsat(problem: ProblemInstance):
     return model, {
         "time_scale": time_scale,
         "x": x,
-        "y": y,
         "s": s,
         "f": f,
         "cmax": cmax,

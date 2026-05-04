@@ -20,15 +20,17 @@ class GASolverService(BaseSolver):
     @staticmethod
     def _default_ga_properties() -> dict:
         return {
-            "num_generations": 1000,
-            "num_parents_mating": 20,
-            "sol_per_pop": 80,
+            "num_generations": 500,          # Reduced max generations
+            "sol_per_pop": 30,               # Reduced population size
+            "num_parents_mating": 10,        # ~1/3 of the population
             "parent_selection_type": "tournament",
-            "keep_parents": 1,
-            "crossover_type": "single_point",
             "K_tournament": 3,
+            "keep_parents": 3,               # Increased elitism (don't lose best schedules)
+            "crossover_type": "uniform",     # Better mixing of Core & Priority genes
             "mutation_type": "random",
-            "mutation_percent_genes": 10,
+            "mutation_percent_genes": 15,    # Slightly higher mutation to prevent local minima
+            "stop_criteria": "saturate_50",  # Stop if no improvement for 50 generations
+            "parallel_processing": ["thread", 100], # Use all CPU threads
         }
 
     def solve(self, problem: ProblemInstance):
@@ -44,6 +46,8 @@ class GASolverService(BaseSolver):
         )
 
         start = timer()
+        # dynamic sol_per_pop
+        self.ga_properties["sol_per_pop"] = max(20, len(problem.tasks) * 5)
         decoded = model.solve(self.ga_properties)
         runtime_seconds = timer() - start
         decoded["runtime_seconds"] = runtime_seconds
@@ -52,13 +56,14 @@ class GASolverService(BaseSolver):
         feasible = True
 
         if decoded.get("constraint_violation", 0) > 0:
-            status = "FEASIBLE_WITH_CONSTRAINT_VIOLATIONS"
+            status = "INFEASIBLE"
+            feasible = False
 
         logger.info(
             "GA solve finished | status=%s | runtime_seconds=%.4f | gens=%d | strict_chain_violation=%s",
             status,
             runtime_seconds,
-            self.ga_properties["num_generations"],
+            decoded.get("ga_metadata", {}).get("generations_completed", self.ga_properties["num_generations"]),
             decoded.get("strict_chain_violation", 0),
         )
 
