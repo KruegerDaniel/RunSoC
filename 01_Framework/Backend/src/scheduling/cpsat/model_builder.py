@@ -1,5 +1,6 @@
+from fractions import Fraction
 from functools import reduce
-from math import gcd
+from math import gcd, lcm
 
 from ortools.sat.python import cp_model
 
@@ -80,37 +81,21 @@ def build_model_cpsat(problem: ProblemInstance):
     # Integer scaling
     # CP-SAT is integer-only.
     # -----------------------------
-    duration_ratios = {}
-    wcet_ratios = {}
-    scale_denoms = []
-
+    duration_values = []
     for job in problem.jobs:
-        num, den = _float_to_ratio(job.duration)
-        duration_ratios[job.id] = (num, den)
-        scale_denoms.append(den)
+        for core in problem.cores:
+            val = Fraction(str(job.duration)) * Fraction(str(core.wcet_scale))
+            duration_values.append(val)
 
-    for core in problem.cores:
-        num, den = _float_to_ratio(core.wcet_scale)
-        wcet_ratios[core.id] = (num, den)
-        scale_denoms.append(den)
-
-    time_scale = _lcm_many(scale_denoms)
+    time_scale = 1
+    for val in duration_values:
+        time_scale = lcm(time_scale, val.denominator)
 
     scaled_duration = {}
-
     for job in problem.jobs:
-        duration_num, duration_den = duration_ratios[job.id]
-
         for core in problem.cores:
-            wcet_num, wcet_den = wcet_ratios[core.id]
-
-            scaled_duration[job.id, core.id] = (
-                    duration_num
-                    * wcet_num
-                    * time_scale
-                    // duration_den
-                    // wcet_den
-            )
+            val = Fraction(str(job.duration)) * Fraction(str(core.wcet_scale))
+            scaled_duration[job.id, core.id] = int(val * time_scale)
 
     # -----------------------------
     # Horizon in scaled time units
@@ -377,9 +362,9 @@ def build_model_cpsat(problem: ProblemInstance):
 
     model.Minimize(
         cmax
-        + core_overflow_scale * sum(core_overflow[c] for c in core_ids)
-        + cluster_overflow_scale * sum(cluster_overflow[cl] for cl in cluster_ids)
-        + sum(comm_penalty_terms)
+        + time_scale * core_overflow_scale * sum(core_overflow[c] for c in core_ids)
+        + time_scale * cluster_overflow_scale * sum(cluster_overflow[cl] for cl in cluster_ids)
+        + time_scale * sum(comm_penalty_terms)
     )
 
     return model, {

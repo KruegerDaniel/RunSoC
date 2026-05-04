@@ -141,7 +141,7 @@ class CpSolverService(BaseSolver):
             solver=cls.name,
             status=status,
             feasible=True,
-            objective=solver.ObjectiveValue(),
+            objective=solver.ObjectiveValue() / time_scale,
             makespan=makespan,
             job_assignment=job_assignment,
             starts=starts,
@@ -152,6 +152,7 @@ class CpSolverService(BaseSolver):
             runtime_seconds=metadata.get("runtime_seconds", 0),
             metadata={
                 "time_scale": time_scale,
+                "scaled_objective": solver.ObjectiveValue(),
                 "best_objective_bound": solver.BestObjectiveBound(),
                 "wall_time": solver.WallTime(),
                 "num_conflicts": solver.NumConflicts(),
