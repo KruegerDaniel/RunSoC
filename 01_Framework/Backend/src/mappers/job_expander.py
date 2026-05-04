@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def _derive_horizon(
         data: dict,
         task_chains: list[TaskChain],
-        max_hyperperiod: int = 50_000,
+        max_hyperperiod: int = 500_000,
 ) -> int:
     explicit_horizon = data.get("horizon")
 

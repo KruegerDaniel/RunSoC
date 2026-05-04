@@ -20,7 +20,7 @@ class ProblemInstanceMapper:
         - tasks/dependencies/task_chains are templates.
         - jobs/job_dependencies are concrete finite-horizon schedulable instances.
         """
-        comms_weight, mem_scale = _parse_config(data)
+        comms_weight, mem_scale, max_jitter = _parse_config(data)
 
         clusters, cores = _parse_platform(data)
         memory_nodes = _extract_memory_nodes(
@@ -78,4 +78,5 @@ class ProblemInstanceMapper:
             horizon=horizon,
             memory_penalty_scale=mem_scale,
             comms_penalty_weight=comms_weight,
+            max_chain_jitter=max_jitter,
         )

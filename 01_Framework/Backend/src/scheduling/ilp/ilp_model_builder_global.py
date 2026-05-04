@@ -60,7 +60,6 @@ def build_model(problem: ProblemInstance):
     x = pulp.LpVariable.dicts("allocs", (job_ids, core_ids), cat="Binary")
     s = pulp.LpVariable.dicts("start", job_ids, lowBound=0, upBound=big_m, cat="Continuous")
     f = pulp.LpVariable.dicts("finish", job_ids, lowBound=0, upBound=big_m, cat="Continuous")
-    cmax = pulp.LpVariable("c_max", lowBound=0, upBound=big_m, cat="Continuous")
 
     core_overflow = pulp.LpVariable.dicts("core_overflow", core_ids, lowBound=0, cat="Continuous")
     cluster_overflow = pulp.LpVariable.dicts("cluster_overflow", cluster_ids, lowBound=0,
@@ -97,9 +96,6 @@ def build_model(problem: ProblemInstance):
             job.duration * cores[c].wcet_scale * x[i][c]
             for c in core_ids)
         ), f"finish_def_{i}"
-
-        # makespan constraint
-        model += cmax >= f[i], f"cmax_{i}"
 
     # Precedence constraints
     for dep in problem.job_dependencies:
@@ -194,8 +190,7 @@ def build_model(problem: ProblemInstance):
     core_overflow_scale = problem.memory_penalty_scale.get("core_overflow_scale", 1)
     cluster_overflow_scale = problem.memory_penalty_scale.get("cluster_overflow_scale", 1)
     model += (
-            cmax
-            + core_overflow_scale * pulp.lpSum(core_overflow[c] for c in core_ids)
+            core_overflow_scale * pulp.lpSum(core_overflow[c] for c in core_ids)
             + cluster_overflow_scale * pulp.lpSum(cluster_overflow[cl] for cl in cluster_ids)
             + pulp.lpSum(comm_penalties))
 
@@ -203,7 +198,6 @@ def build_model(problem: ProblemInstance):
         "x": x,
         "s": s,
         "f": f,
-        "cmax": cmax,
         "core_overflow": core_overflow,
         "cluster_overflow": cluster_overflow,
     }

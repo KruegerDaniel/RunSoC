@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class GASolverService(BaseSolver):
     name = "GA"
 
-    def __init__(self, ga_properties: dict | None = None, time_limit_seconds: int = 5000):
+    def __init__(self, ga_properties: dict | None = None, time_limit_seconds: int = 600):
         self.ga_properties = ga_properties or self._default_ga_properties()
         self.time_limit_seconds = time_limit_seconds
 
@@ -30,7 +30,6 @@ class GASolverService(BaseSolver):
             "mutation_type": "random",
             "mutation_percent_genes": 15,    # Slightly higher mutation to prevent local minima
             "stop_criteria": "saturate_50",  # Stop if no improvement for 50 generations
-            "parallel_processing": ["thread", 100], # Use all CPU threads
         }
 
     def solve(self, problem: ProblemInstance):
@@ -86,13 +85,14 @@ class GASolverService(BaseSolver):
         job_assignment = decoded["job_assignment"]
         starts = decoded["starts"]
         finishes = decoded["finishes"]
+        makespan = max(finishes.values()) if finishes else 0
 
         return SolverResult(
             solver="GA",
             status=status,
             feasible=feasible,
             objective=decoded["total_cost"],
-            makespan=decoded["cmax"],
+            makespan=makespan,
             job_assignment=job_assignment,
             starts=starts,
             finishes=finishes,

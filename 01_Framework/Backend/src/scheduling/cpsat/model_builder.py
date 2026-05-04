@@ -222,7 +222,18 @@ def build_model_cpsat(problem: ProblemInstance):
             ).OnlyEnforceIf(x[i, core_id])
 
         if job.is_chain_root and job.chain_id is not None:
-            model.Add(s[i] == release_tick)
+            jitter = getattr(problem, "max_chain_jitter", 0)
+
+            if jitter == 0:
+                # Strict start
+                model.Add(s[i] == release_tick)
+            if jitter < 0:
+                # Unbounded start
+                model.add(s[i] >= release_tick)
+            else:
+                # Bounded start within jitter window
+                model.add(s[i] >= release_tick)
+                model.add(s[i] <= release_tick + jitter)
 
     # -----------------------------
     # Job precedence constraints
@@ -247,15 +258,6 @@ def build_model_cpsat(problem: ProblemInstance):
     for core_id in core_ids:
         model.AddNoOverlap(intervals_per_core[core_id])
 
-    # -----------------------------
-    # Makespan
-    # -----------------------------
-    cmax = model.NewIntVar(0, horizon, "cmax")
-
-    if job_ids:
-        model.AddMaxEquality(cmax, [f[i] for i in job_ids])
-    else:
-        model.Add(cmax == 0)
 
     # -----------------------------
     # Core / cluster memory overflow
@@ -358,7 +360,6 @@ def build_model_cpsat(problem: ProblemInstance):
     cluster_overflow_scale = problem.memory_penalty_scale.get("cluster_overflow_scale", 1)
 
     model.Minimize(
-        cmax
         + time_scale * core_overflow_scale * sum(core_overflow[c] for c in core_ids)
         + time_scale * cluster_overflow_scale * sum(cluster_overflow[cl] for cl in cluster_ids)
         + time_scale * sum(comm_penalty_terms)
@@ -370,7 +371,6 @@ def build_model_cpsat(problem: ProblemInstance):
         "y": y,
         "s": s,
         "f": f,
-        "cmax": cmax,
         "s_local": s_local,
         "f_local": f_local,
         "intervals": intervals,

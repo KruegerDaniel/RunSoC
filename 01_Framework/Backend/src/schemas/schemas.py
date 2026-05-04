@@ -122,6 +122,8 @@ class ProblemInstance(BaseModel):
 
     horizon: int
 
+    max_chain_jitter: int | None = 0
+
     memory_penalty_scale: dict = Field(
         default_factory=lambda: {
             "core_overflow_scale": 1,

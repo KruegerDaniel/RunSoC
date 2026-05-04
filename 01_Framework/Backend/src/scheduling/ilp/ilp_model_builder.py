@@ -101,6 +101,19 @@ def build_model(problem: ProblemInstance):
         # strict chain start periodicity
         if job.is_chain_root and job.chain_id is not None:
             model += s[i] == job.release_time, f"strict_chain_start_{i}"
+        if job.is_chain_root and job.chain_id is not None:
+            jitter = getattr(problem, "max_chain_jitter", 0)
+
+            if jitter == 0:
+                # Strict start
+                model += s[i] == job.release_time, f"strict_chain_start_{i}"
+            if jitter < 0:
+                # Unbounded start
+                model += s[i] >= job.release_time, f"strict_chain_start_{i}"
+            else:
+                # Bounded start within jitter window
+                model += s[i] >= job.release_time, f"strict_chain_start_low_{i}"
+                model += s[i] <= job.release_time + jitter, f"strict_chain_start_up_{i}"
 
         # finish time (uses x alias perfectly)
         model += (

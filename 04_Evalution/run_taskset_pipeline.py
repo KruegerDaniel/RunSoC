@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from utils.logger import configure_logging
 
 DEFAULT_CONFIG = {
     "soc_template_path": "./default-soc.json",
@@ -22,6 +23,7 @@ DEFAULT_CONFIG = {
     ],
 }
 
+configure_logging(log_dir=".logs", log_file="evaluation.log", level="INFO")
 
 def load_config(path: Path | None) -> dict[str, Any]:
     if path is None:

@@ -69,11 +69,11 @@ def solve(solver_name: str):
             return jsonify(feasability), 400
 
         task_assignment = feasability.get("task_assignment", {})
-
+        """
         for task in problem.tasks:
             if task.id in task_assignment and task_assignment[task.id] is not None:
                 task.eligible_cores = [task_assignment[task.id]]
-
+        """
         solver_key = solver_name.upper()
         solver = solvers.get(solver_key)
 

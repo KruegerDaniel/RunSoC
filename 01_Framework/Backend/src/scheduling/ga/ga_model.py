@@ -14,8 +14,13 @@ logger = logging.getLogger(__name__)
 
 class GaModel:
     def __init__(self, problem_instance: ProblemInstance, time_limit_seconds: int = 100):
+        self.start_time = None
+
         self.problem_instance = problem_instance
         self.time_limit_seconds = time_limit_seconds
+
+        self.jitter = getattr(self.problem_instance, "max_chain_jitter", 0)
+        self.is_strict_start = (self.jitter == 0)
 
         # -----------------------------
         # Tasks & Jobs
@@ -95,20 +100,7 @@ class GaModel:
             self.gene_space.append({"low": 0.0, "high": 1.0})
 
     def solve(self, ga_properties):
-        start_time = time.time()
-
-        def on_generation(ga_instance):
-            elapsed = time.time() - start_time
-
-            if ga_instance.generations_completed % 100 == 0:
-                logger.debug(
-                    "Generation %d | time elapsed: %.2f",
-                    ga_instance.generations_completed,
-                    elapsed,
-                )
-
-            if elapsed >= self.time_limit_seconds:
-                return "stop"
+        self.start_time = time.time()
 
         ga = pygad.GA(
             **ga_properties,
@@ -116,7 +108,7 @@ class GaModel:
             gene_space=self.gene_space,
             gene_type=self._gene_types(),
             fitness_func=self.fitness_func,
-            on_generation=on_generation,
+            on_generation=self.on_generation,
             random_mutation_max_val=1.0,
             random_mutation_min_val=0.0,
         )
@@ -148,8 +140,6 @@ class GaModel:
         # 3. Simulate Schedule
         starts, finishes = self._build_schedule(job_assignment, priority_order)
 
-        c_max = max(finishes.values()) if finishes else 0
-
         # 4. Task-Level Cost Calculations
         core_overflows, cluster_overflows = self._calculate_mem(task_assignment)
         comm_cost = self._calculate_comm_cost(task_assignment)
@@ -164,10 +154,13 @@ class GaModel:
 
         same_core_overlap_violation = self._calculate_same_core_overlap_violation(starts, finishes, job_assignment)
 
+        jitter_violation = self._calculate_jitter_violation(starts)
+
         violation = (
                 precedence_violation
                 + deadline_violation
                 + same_core_overlap_violation
+                + jitter_violation
         )
 
         # Increase violation cost in later generations
@@ -179,8 +172,7 @@ class GaModel:
         weight_scalars = self.problem_instance.memory_penalty_scale
 
         total_cost = (
-                c_max
-                + weight_scalars.get("core_overflow_scale", 1) * sum(core_overflows.values())
+                weight_scalars.get("core_overflow_scale", 1) * sum(core_overflows.values())
                 + weight_scalars.get("cluster_overflow_scale", 1) * sum(cluster_overflows.values())
                 + comm_cost
                 + violation_cost
@@ -191,7 +183,6 @@ class GaModel:
             "priority_order": priority_order,
             "starts": starts,
             "finishes": finishes,
-            "cmax": c_max,
             "core_overflows": core_overflows,
             "cluster_overflows": cluster_overflows,
             "comm_cost": comm_cost,
@@ -205,6 +196,19 @@ class GaModel:
     # ------------------------------------------------------------------
     # PyGAD
     # ------------------------------------------------------------------
+
+    def on_generation(self, ga_instance):
+        elapsed = time.time() - self.start_time
+
+        if ga_instance.generations_completed % 100 == 0:
+            logger.debug(
+                "Generation %d | time elapsed: %.2f",
+                ga_instance.generations_completed,
+                elapsed,
+            )
+
+        if elapsed >= self.time_limit_seconds:
+            return "stop"
 
     def fitness_func(self, ga_instance, solution, solution_idx):
         decoded = self.decode_solution(solution, ga_instance.generations_completed)
@@ -274,21 +278,22 @@ class GaModel:
         # Forcibly schedule chain root jobs
         anchored_job_ids = set()
 
-        for job_id in self.job_ids:
-            job = self.jobs[job_id]
+        if self.is_strict_start:
+            for job_id in self.job_ids:
+                job = self.jobs[job_id]
 
-            if job.is_chain_root and job.chain_id is not None:
-                core_id = assignment[job_id]
-                duration = self.duration_cache[job_id][core_id]
+                if job.is_chain_root and job.chain_id is not None:
+                    core_id = assignment[job_id]
+                    duration = self.duration_cache[job_id][core_id]
 
-                start = float(job.release_time)
-                finish = start + duration
+                    start = float(job.release_time)
+                    finish = start + duration
 
-                starts[job_id] = start
-                finishes[job_id] = finish
-                anchored_job_ids.add(job_id)
+                    starts[job_id] = start
+                    finishes[job_id] = finish
+                    anchored_job_ids.add(job_id)
 
-                intervals_by_core[core_id].append((start, finish, job_id))
+                    intervals_by_core[core_id].append((start, finish, job_id))
 
         for core_id in self.core_ids:
             intervals_by_core[core_id].sort(key=lambda item: (item[0], item[1], item[2]))
@@ -550,6 +555,23 @@ class GaModel:
 
                 if previous_finish is None or finish > previous_finish:
                     previous_finish = finish
+
+        return violation
+
+    def _calculate_jitter_violation(self, starts: Dict[str, float]) -> float:
+        if self.jitter is None or self.jitter <= 0:
+            return 0.0
+
+        violation = 0.0
+
+        for job_id in self.job_ids:
+            job = self.jobs[job_id]
+            if job.is_chain_root and job.chain_id is not None:
+                actual_start = starts.get(job_id)
+                if actual_start is not None:
+                    max_allowed_start = float(job.release_time) + self.jitter
+                    if actual_start > max_allowed_start:
+                        violation += (actual_start - max_allowed_start)
 
         return violation
 

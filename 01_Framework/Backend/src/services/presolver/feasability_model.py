@@ -1,55 +1,77 @@
-import pulp
+import math
+
+from ortools.sat.python import cp_model
+
 from schemas.schemas import ProblemInstance
+
+UTILIZATION_SCALE = 1_000_000
 
 
 def build_feasibility_model(problem: ProblemInstance, effective_periods: dict[str, float]):
-    model = pulp.LpProblem("MPSoC_Feasibility", pulp.LpMinimize)
+    model = cp_model.CpModel()
 
     tasks = {t.id: t for t in problem.tasks}
     cores = {c.id: c for c in problem.cores}
-    clusters = {c.id: c for c in problem.clusters}
 
     task_ids = list(tasks.keys())
     core_ids = list(cores.keys())
-    cluster_ids = list(clusters.keys())
-
-    cluster_to_cores = {cl_id: [] for cl_id in cluster_ids}
-    for c in problem.cores:
-        cluster_to_cores[c.cluster_id].append(c.id)
 
     # --- Decision Variables ---
-    # y[t][c] = 1 if task t is assigned to core c
-    y = pulp.LpVariable.dicts("assign", (task_ids, core_ids), cat="Binary")
+    # y[t][c] = True if task t is assigned to core c
+    y = {}
+    for t_id in task_ids:
+        for c in core_ids:
+            y[t_id, c] = model.NewBoolVar(f"assign_{t_id}_{c}")
 
     # max_utilization allows us to load-balance the cores
-    max_utilization = pulp.LpVariable("max_utilization", lowBound=0, upBound=1.0, cat="Continuous")
+    max_utilization = model.NewIntVar(0, UTILIZATION_SCALE, "max_utilization")
 
     # --- Constraints ---
 
-    # 1. Exact Assignment & Eligibility
+    # Exact Assignment & Eligibility
     for t_id in task_ids:
         eligible = tasks[t_id].eligible_cores
-        model += pulp.lpSum(y[t_id][c] for c in eligible) == 1, f"assign_once_{t_id}"
+        assigned_vars = []
+
         for c in core_ids:
-            if c not in eligible:
-                model += y[t_id][c] == 0, f"ineligible_{t_id}_{c}"
+            if c in eligible:
+                assigned_vars.append(y[t_id, c])
+            else:
+                # Force ineligible assignments to False
+                model.Add(y[t_id, c] == 0)
 
-    # 4. Core Utilization (The CPU Check)
-    # Utilization U = WCET / Period. Sum of U on a core must be <= 1.0
+        # Task must be assigned to exactly one eligible core
+        if assigned_vars:
+            model.AddExactlyOne(assigned_vars)
+
+    # Core Utilization (The CPU Check)
     for c in core_ids:
-        core_utilization_expr = pulp.lpSum(
-            ((tasks[t_id].duration * cores[c].wcet_scale) / effective_periods[t_id]) * y[t_id][c]
-            for t_id in task_ids if effective_periods.get(t_id, 0) > 0
-        )
+        core_utilization_terms = []
 
-        # Hard limit: Core cannot exceed 100% processing capacity
-        model += core_utilization_expr <= 1.0, f"utilization_cap_{c}"
+        for t_id in task_ids:
+            period = effective_periods.get(t_id, 0)
+            if period > 0 and c in tasks[t_id].eligible_cores:
+                # Calculate raw float utilization
+                util_float = (tasks[t_id].duration * cores[c].wcet_scale) / period
 
-        # Tie this to the objective variable for load balancing
-        model += max_utilization >= core_utilization_expr, f"track_max_util_{c}"
+                # Scale to integer. We use math.ceil to ensure we don't
+                # under-approximate utilization due to truncation.
+                scaled_util = math.ceil(util_float * UTILIZATION_SCALE)
+
+                # Add the weighted term: scaled_util * y[t_id, c]
+                core_utilization_terms.append(scaled_util * y[t_id, c])
+
+        if core_utilization_terms:
+            core_total_util = sum(core_utilization_terms)
+
+            # Hard limit: Core cannot exceed 100% (UTILIZATION_SCALE)
+            model.Add(core_total_util <= UTILIZATION_SCALE)
+
+            # Tie this to the objective variable for load balancing
+            model.Add(max_utilization >= core_total_util)
 
     # --- Objective ---
     # Minimize the maximum utilization across all cores (Load Balancing)
-    model += max_utilization
+    model.Minimize(max_utilization)
 
     return model, y, max_utilization

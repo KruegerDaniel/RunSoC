@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class CpSolverService(BaseSolver):
     name = "CPSAT"
 
-    def __init__(self, time_limit_seconds: int = 5000, num_workers: int = 8):
+    def __init__(self, time_limit_seconds: int = 600, num_workers: int = 8):
         self.time_limit_seconds = time_limit_seconds
         self.num_workers = num_workers
 
@@ -25,6 +25,7 @@ class CpSolverService(BaseSolver):
 
         solver.parameters.max_time_in_seconds = self.time_limit_seconds
         solver.parameters.num_search_workers = self.num_workers
+        solver.parameters.log_search_progress = False
 
         logger.info(
             "CP-SAT solve started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s | time_limit=%s",
@@ -35,7 +36,6 @@ class CpSolverService(BaseSolver):
             self.time_limit_seconds,
         )
 
-        # solver.parameters.log_search_progress = True
 
         start = timer()
         status_code = solver.Solve(model)
@@ -135,7 +135,7 @@ class CpSolverService(BaseSolver):
             for cluster in problem_instance.clusters
         }
 
-        makespan = solver.Value(vars_dict["cmax"]) / time_scale
+        makespan = max(finishes.values())
 
         return SolverResult(
             solver=cls.name,

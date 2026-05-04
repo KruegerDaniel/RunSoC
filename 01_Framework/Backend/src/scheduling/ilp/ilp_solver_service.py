@@ -139,6 +139,8 @@ class IlpSolverService(BaseSolver):
             for job in problem_instance.jobs
         }
 
+        makespan = max(finishes.values()) if finishes else 0
+
         raw_core_overflows = vars_dict["core_overflow"]
         core_overflows = {
             core.id: cls._solved_number(raw_core_overflows[core.id], default=0)
@@ -159,7 +161,7 @@ class IlpSolverService(BaseSolver):
             status=status,
             feasible=True,
             objective=cls._solved_number(model.objective),
-            makespan=cls._solved_number(vars_dict["cmax"]),
+            makespan=makespan,
             job_assignment=job_assignment,
             starts=starts,
             finishes=finishes,
