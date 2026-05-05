@@ -339,10 +339,7 @@ def build_model_cpsat(problem: ProblemInstance):
                     f"z_{t1}_{t2}_{c1}_{c2}"
                 )
 
-                model.AddMultiplicationEquality(
-                    z[t1, t2, c1, c2],
-                    [y[t1, c1], y[t2, c2]],
-                )
+                model.Add(z[t1, t2, c1, c2] >= y[t1, c1] + y[t2, c2] - 1)
 
                 if (c1, c2) in explicit_path_penalty:
                     penalty = explicit_path_penalty[(c1, c2)]
@@ -360,9 +357,9 @@ def build_model_cpsat(problem: ProblemInstance):
     cluster_overflow_scale = problem.memory_penalty_scale.get("cluster_overflow_scale", 1)
 
     model.Minimize(
-        + time_scale * core_overflow_scale * sum(core_overflow[c] for c in core_ids)
-        + time_scale * cluster_overflow_scale * sum(cluster_overflow[cl] for cl in cluster_ids)
-        + time_scale * sum(comm_penalty_terms)
+        + core_overflow_scale * sum(core_overflow[c] for c in core_ids)
+        + cluster_overflow_scale * sum(cluster_overflow[cl] for cl in cluster_ids)
+        + sum(comm_penalty_terms)
     )
 
     return model, {

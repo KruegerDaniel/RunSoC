@@ -20,15 +20,15 @@ class GASolverService(BaseSolver):
     @staticmethod
     def _default_ga_properties() -> dict:
         return {
-            "num_generations": 500,          # Reduced max generations
-            "sol_per_pop": 30,               # Reduced population size
-            "num_parents_mating": 10,        # ~1/3 of the population
+            "num_generations": 500,  # Reduced max generations
+            "sol_per_pop": 30,  # Reduced population size
+            "num_parents_mating": 10,  # ~1/3 of the population
             "parent_selection_type": "tournament",
             "K_tournament": 3,
-            "keep_parents": 3,               # Increased elitism (don't lose best schedules)
-            "crossover_type": "uniform",     # Better mixing of Core & Priority genes
+            "keep_parents": 3,  # Increased elitism (don't lose best schedules)
+            "crossover_type": "uniform",  # Better mixing of Core & Priority genes
             "mutation_type": "random",
-            "mutation_percent_genes": 15,    # Slightly higher mutation to prevent local minima
+            "mutation_percent_genes": 15,  # Slightly higher mutation to prevent local minima
             "stop_criteria": "saturate_50",  # Stop if no improvement for 50 generations
         }
 
@@ -46,8 +46,14 @@ class GASolverService(BaseSolver):
 
         start = timer()
         # dynamic sol_per_pop
-        self.ga_properties["sol_per_pop"] = max(20, len(problem.tasks) * 5)
-        decoded = model.solve(self.ga_properties)
+        sol_per_pop = max(20, len(problem.tasks) * 15)
+        properties = {
+            **self.ga_properties,
+            "sol_per_pop": sol_per_pop,
+            "keep_parents": max(3, int(sol_per_pop * 0.1)),
+            "num_parents_mating": max(10, int(sol_per_pop * 0.4)),
+        }
+        decoded = model.solve(properties)
         runtime_seconds = timer() - start
         decoded["runtime_seconds"] = runtime_seconds
 
@@ -71,16 +77,18 @@ class GASolverService(BaseSolver):
             decoded=decoded,
             status=status,
             feasible=feasible,
+            ga_properties=properties,
         )
 
         return build_solution_response(problem, normalized_result)
 
     @staticmethod
     def _to_normalized_result(
-        problem_instance: ProblemInstance,
-        decoded: dict,
-        status: str,
-        feasible: bool,
+            problem_instance: ProblemInstance,
+            decoded: dict,
+            status: str,
+            feasible: bool,
+            ga_properties: dict = None,
     ) -> SolverResult:
         job_assignment = decoded["job_assignment"]
         starts = decoded["starts"]
@@ -101,6 +109,7 @@ class GASolverService(BaseSolver):
             raw_status=1,
             runtime_seconds=decoded["runtime_seconds"],
             metadata={
+                "ga_properties": {**ga_properties},
                 "fitness": decoded.get("fitness"),
                 "comm_cost": decoded.get("comm_cost"),
                 "priority_order": decoded.get("priority_order"),

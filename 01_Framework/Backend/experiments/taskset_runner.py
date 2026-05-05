@@ -1,5 +1,7 @@
 import argparse
 import json
+import logging
+import multiprocessing
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -15,6 +17,7 @@ from scheduling.cpsat.cp_solver_service import CpSolverService
 from scheduling.ga.ga_solver_service import GASolverService
 from scheduling.ilp.ilp_solver_service import IlpSolverService
 
+logger = logging.getLogger(__name__)
 
 AVAILABLE_SOLVERS = {
     "CPSAT": CpSolverService,
@@ -22,6 +25,10 @@ AVAILABLE_SOLVERS = {
     "GA": GASolverService,
 }
 
+def _worker_solve(solver_name, problem_instance, return_dict):
+    """Runs in an isolated process to sandbox memory/crashes."""
+    solver = AVAILABLE_SOLVERS[solver_name]()
+    return_dict['solution'] = solver.solve(problem_instance)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -82,10 +89,10 @@ def load_taskset(taskset_path: Path) -> dict:
 
 
 def write_solution(
-    output_dir: Path,
-    taskset_name: str,
-    solver_name: str,
-    solution: dict,
+        output_dir: Path,
+        taskset_name: str,
+        solver_name: str,
+        solution: dict,
 ) -> None:
     taskset_output_dir = output_dir / taskset_name
     taskset_output_dir.mkdir(parents=True, exist_ok=True)
@@ -97,22 +104,35 @@ def write_solution(
 
 
 def run_solver_on_taskset(
-    taskset_path: Path,
-    solver_names: Iterable[str],
-    output_dir: Path,
-    mapper: ProblemInstanceMapper,
-    timeout_seconds: int = 300,
+        taskset_path: Path,
+        solver_names: Iterable[str],
+        output_dir: Path,
+        mapper: ProblemInstanceMapper,
+        timeout_seconds: int = 300,
 ) -> None:
-    print(f"Running taskset: {taskset_path.name}")
+    logger.info(f"Running taskset: {taskset_path.name}")
 
     taskset = load_taskset(taskset_path)
     problem_instance = mapper.from_request_json(taskset)
 
     for solver_name in solver_names:
-        print(f"  Running solver: {solver_name}")
+        logger.info(f"  Running solver: {solver_name}")
 
-        solver = AVAILABLE_SOLVERS[solver_name]()
-        solution = solver.solve(problem_instance)
+        manager = multiprocessing.Manager()
+        return_dict = manager.dict()
+
+        p = multiprocessing.Process(
+            target=_worker_solve,
+            args=(solver_name, problem_instance, return_dict),
+        )
+        p.start()
+        p.join()
+
+        if p.exitcode == 0 and 'solution' in return_dict:
+            solution = return_dict['solution']
+        else:
+            logger.error(f"  [!] Solver {solver_name} crashed or ran out of memory (Exit code: {p.exitcode})")
+            solution = {"error": f"Solver {solver_name} crashed or ran out of memory (Exit code: {p.exitcode})"}
 
         write_solution(
             output_dir=output_dir,
@@ -122,23 +142,27 @@ def run_solver_on_taskset(
         )
 
 
-def main() -> None:
-    args = parse_args()
-    validate_args(args)
-
+def main(
+        input_dir: Path = Path("input"),
+        output_dir: Path = Path("output"),
+        solvers: Iterable[str] = list(AVAILABLE_SOLVERS.keys()),
+        timeout_seconds: int = 300,
+):
     mapper = ProblemInstanceMapper()
-    taskset_files = find_taskset_files(args.input_dir)
+    taskset_files = find_taskset_files(input_dir)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     for taskset_path in taskset_files:
         run_solver_on_taskset(
             taskset_path=taskset_path,
-            solver_names=args.solvers,
-            output_dir=args.output_dir,
+            solver_names=solvers,
+            output_dir=output_dir,
             mapper=mapper,
         )
 
 
 if __name__ == "__main__":
+    args = parse_args()
+    validate_args(args)
     main()

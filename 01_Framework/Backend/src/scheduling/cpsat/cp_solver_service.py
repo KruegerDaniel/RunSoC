@@ -1,6 +1,7 @@
 import logging
 from timeit import default_timer as timer
 
+import gc
 from ortools.sat.python import cp_model
 
 from schemas.schemas import ProblemInstance
@@ -58,7 +59,14 @@ class CpSolverService(BaseSolver):
             metadata={"runtime_seconds": runtime_seconds},
         )
 
-        return build_solution_response(problem, normalized_result)
+        response = build_solution_response(problem, normalized_result)
+
+        # Forced cleanup since this crashed on multiple runs
+        del model
+        del solver
+        del vars_dict
+        gc.collect()
+        return response
 
     @classmethod
     def _to_normalized_result(

@@ -158,6 +158,7 @@ def generate_taskset(num_tasks: int):
 
     return result
 
+
 def write_taskset(output_dir: str, filename: str, taskset: Dict, soc_template: dict) -> str:
     os.makedirs(output_dir, exist_ok=True)
 
@@ -179,7 +180,9 @@ def int_arg_range(mini, maxi):
         if f < mini or f > maxi:
             raise argparse.ArgumentTypeError("Argument must be < " + str(mini) + "and > " + str(maxi))
         return f
+
     return range_limited_int_type
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -218,24 +221,32 @@ def parse_args() -> argparse.Namespace:
 
     return parser.parse_args()
 
-if __name__ == "__main__":
-    # read command line arguments
-    args = parse_args()
 
-    if args.seed is not None:
-        random.seed(args.seed)
+def main(filename: str, output_dir: Path, soc_template: Path, num_tasks: int, seed: Optional[int] = None):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if seed is not None:
+        random.seed(seed)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    taskset = generate_taskset(num_tasks)
 
-    taskset = generate_taskset(args.num_tasks)
-
-    soc_template = json.load(open(args.soc_template, "r"))
+    with open(soc_template, "r") as f:
+        soc_data = json.load(f)
 
     output_path = write_taskset(
-        output_dir=args.output_dir,
-        filename=args.filename,
+        output_dir=str(output_dir),
+        filename=filename,
         taskset=taskset,
-        soc_template=soc_template,
+        soc_template=soc_data,
     )
+    print(f"Generated {num_tasks} runnables in {output_path}")
 
-    print(f"Generated {args.num_tasks} runnables in {output_path}")
+
+if __name__ == "__main__":
+    args = parse_args()
+    main(
+        filename=args.filename,
+        output_dir=args.output_dir,
+        soc_template=args.soc_template,
+        num_tasks=args.num_tasks,
+        seed=args.seed
+    )

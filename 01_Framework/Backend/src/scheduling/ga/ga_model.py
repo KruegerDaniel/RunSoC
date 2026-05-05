@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class GaModel:
     def __init__(self, problem_instance: ProblemInstance, time_limit_seconds: int = 100):
         self.start_time = None
+        self.max_generations = None
 
         self.problem_instance = problem_instance
         self.time_limit_seconds = time_limit_seconds
@@ -101,6 +102,7 @@ class GaModel:
 
     def solve(self, ga_properties):
         self.start_time = time.time()
+        self.max_generations = ga_properties.get("max_generations", 500)
 
         ga = pygad.GA(
             **ga_properties,
@@ -165,7 +167,7 @@ class GaModel:
 
         # Increase violation cost in later generations
         base_weight = 100
-        growth_factor = min(1.0, current_generation / 500.0)
+        growth_factor = min(1.0, current_generation / self.max_generations)
         violation_weight = base_weight + (999900 * growth_factor)
         violation_cost = violation_weight * violation
 
