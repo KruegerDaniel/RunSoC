@@ -21,7 +21,7 @@ class IlpSolverService(BaseSolver):
         self.keep_files = keep_files
         self.threads = threads
 
-    def solve(self, problem: ProblemInstance) -> dict:
+    def solve(self, problem: ProblemInstance, hints: dict = None) -> dict:
         logger.info(
             "CBC model building started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s",
             len(problem.jobs),

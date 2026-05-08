@@ -7,5 +7,5 @@ class BaseSolver(ABC):
     name: str
 
     @abstractmethod
-    def solve(self, problem: ProblemInstance) -> dict:
+    def solve(self, problem: ProblemInstance, hints: dict = None) -> dict:
         pass

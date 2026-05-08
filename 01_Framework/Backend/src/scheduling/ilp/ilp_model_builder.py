@@ -33,8 +33,8 @@ def build_model(problem: ProblemInstance):
     predecessors_by_job = {j_id: set() for j_id in job_ids}
     for dep in problem.job_dependencies:
         if dep.successor in job_ids and dep.predecessor in job_ids:
-            successors_by_job[dep.successor].add(dep.predecessor)
-            predecessors_by_job[dep.predecessor].add(dep.successor)
+            successors_by_job[dep.predecessor].add(dep.successor)
+            predecessors_by_job[dep.successor].add(dep.predecessor)
 
     terminal_jobs_by_chain_instance = {}
     for key, chain_jobs_ids in jobs_by_chain_instance.items():
@@ -64,7 +64,6 @@ def build_model(problem: ProblemInstance):
     # -----------------------------------
     s = pulp.LpVariable.dicts("start", job_ids, lowBound=0, upBound=big_m, cat="Continuous")
     f = pulp.LpVariable.dicts("finish", job_ids, lowBound=0, upBound=big_m, cat="Continuous")
-    cmax = pulp.LpVariable("c_max", lowBound=0, upBound=big_m, cat="Continuous")
 
     core_overflow = pulp.LpVariable.dicts("core_overflow", core_ids, lowBound=0, cat="Continuous")
     cluster_overflow = pulp.LpVariable.dicts("cluster_overflow", cluster_ids, lowBound=0, cat="Continuous")
@@ -98,21 +97,13 @@ def build_model(problem: ProblemInstance):
         # earliest start
         model += s[i] >= job.release_time, f"release_time_{i}"
 
-        # strict chain start periodicity
-        if job.is_chain_root and job.chain_id is not None:
-            model += s[i] == job.release_time, f"strict_chain_start_{i}"
+        # chain root start policy
         if job.is_chain_root and job.chain_id is not None:
             jitter = getattr(problem, "max_chain_jitter", 0)
 
             if jitter == 0:
-                # Strict start
-                model += s[i] == job.release_time, f"strict_chain_start_{i}"
-            if jitter < 0:
-                # Unbounded start
-                model += s[i] >= job.release_time, f"strict_chain_start_{i}"
-            else:
-                # Bounded start within jitter window
-                model += s[i] >= job.release_time, f"strict_chain_start_low_{i}"
+                model += s[i] == job.release_time, f"strict_chain_start_eq_{i}"
+            elif jitter > 0:
                 model += s[i] <= job.release_time + jitter, f"strict_chain_start_up_{i}"
 
         # finish time (uses x alias perfectly)
@@ -121,9 +112,6 @@ def build_model(problem: ProblemInstance):
             job.duration * cores[c].wcet_scale * x[i][c]
             for c in core_ids)
         ), f"finish_def_{i}"
-
-        # makespan constraint
-        model += cmax >= f[i], f"cmax_{i}"
 
     # Precedence constraints
     for dep in problem.job_dependencies:
@@ -218,9 +206,7 @@ def build_model(problem: ProblemInstance):
     # -----------------------------
     core_overflow_scale = problem.memory_penalty_scale.get("core_overflow_scale", 1)
     cluster_overflow_scale = problem.memory_penalty_scale.get("cluster_overflow_scale", 1)
-    model += (
-            cmax
-            + core_overflow_scale * pulp.lpSum(core_overflow[c] for c in core_ids)
+    model += (core_overflow_scale * pulp.lpSum(core_overflow[c] for c in core_ids)
             + cluster_overflow_scale * pulp.lpSum(cluster_overflow[cl] for cl in cluster_ids)
             + pulp.lpSum(comm_penalties))
 
@@ -228,7 +214,6 @@ def build_model(problem: ProblemInstance):
         "x": x,
         "s": s,
         "f": f,
-        "cmax": cmax,
         "core_overflow": core_overflow,
         "cluster_overflow": cluster_overflow,
     }

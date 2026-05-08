@@ -32,7 +32,7 @@ class GASolverService(BaseSolver):
             "stop_criteria": "saturate_50",  # Stop if no improvement for 50 generations
         }
 
-    def solve(self, problem: ProblemInstance):
+    def solve(self, problem: ProblemInstance, hints: dict = None):
         model = GaModel(problem, time_limit_seconds=self.time_limit_seconds)
 
         logger.info(
