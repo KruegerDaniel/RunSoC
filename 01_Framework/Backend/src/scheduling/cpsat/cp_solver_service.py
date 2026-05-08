@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 class CpSolverService(BaseSolver):
     name = "CPSAT"
 
-    def __init__(self, time_limit_seconds: int = 600, num_workers: int = 8):
+    def __init__(self, time_limit_seconds: int = 3600, num_workers: int = 8):
         self.time_limit_seconds = time_limit_seconds
         self.num_workers = num_workers
 
-    def solve(self, problem: ProblemInstance) -> dict:
-        model, vars_dict = build_model_cpsat(problem)
+    def solve(self, problem: ProblemInstance, hints: dict = None) -> dict:
+        model, vars_dict = build_model_cpsat(problem, hints=hints)
         solver = cp_model.CpSolver()
 
         solver.parameters.max_time_in_seconds = self.time_limit_seconds

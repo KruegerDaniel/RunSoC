@@ -36,7 +36,7 @@ def _lcm_many(values: list[int]) -> int:
     return reduce(_lcm, values, 1)
 
 
-def build_model_cpsat(problem: ProblemInstance):
+def build_model_cpsat(problem: ProblemInstance, hints: dict = None):
     model = cp_model.CpModel()
 
     tasks = {t.id: t for t in problem.tasks}
@@ -162,6 +162,14 @@ def build_model_cpsat(problem: ProblemInstance):
         if assigned_task_core_vars:
             model.AddExactlyOne(assigned_task_core_vars)
 
+    if hints:
+        for t_id, assigned_core in hints.items():
+            if (t_id, assigned_core) in y:
+                model.AddHint(y[t_id, assigned_core], 1)
+
+                for c_id in tasks[t_id].eligible_cores:
+                    if c_id != assigned_core and (t_id, c_id) in y:
+                        model.AddHint(y[t_id, c_id], 0)
     # -----------------------------
     # Variables: Job Scheduling
     # -----------------------------

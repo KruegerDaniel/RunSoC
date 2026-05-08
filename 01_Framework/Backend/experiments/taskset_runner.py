@@ -14,11 +14,13 @@ if str(SRC_DIR) not in sys.path:
 
 from mappers.problem_instance_mapper import ProblemInstanceMapper
 from scheduling.cpsat.cp_solver_service import CpSolverService
+from services.presolver import feasability_service
 from scheduling.ga.ga_solver_service import GASolverService
 from scheduling.ilp.ilp_solver_service import IlpSolverService
 
 logger = logging.getLogger(__name__)
 
+feasability_service = feasability_service.FeasibilitySolverService()
 AVAILABLE_SOLVERS = {
     "CPSAT": CpSolverService,
     "CBC": IlpSolverService,
@@ -28,7 +30,13 @@ AVAILABLE_SOLVERS = {
 def _worker_solve(solver_name, problem_instance, return_dict):
     """Runs in an isolated process to sandbox memory/crashes."""
     solver = AVAILABLE_SOLVERS[solver_name]()
-    return_dict['solution'] = solver.solve(problem_instance)
+    feasability = feasability_service.check_feasibility(problem_instance)
+    is_feasible = feasability.get("feasible", False)
+    if not is_feasible:
+        return_dict['solution'] = feasability
+        return
+    task_assignment = feasability.get("task_assignment", {})
+    return_dict['solution'] = solver.solve(problem_instance, hints=task_assignment)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
