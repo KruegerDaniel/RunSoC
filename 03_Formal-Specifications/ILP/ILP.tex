@@ -1,0 +1,90 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{mathtools}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\pagenumbering{gobble}
+
+\begin{document}
+
+\section{ILP Formulation}
+
+\paragraph{Model}
+\begin{align}
+\min \quad 
+& C_{\max}
++ \lambda_{\mathrm{core}} \sum_{c \in C} o_c^{\mathrm{core}}
++ \lambda_{\mathrm{cluster}} \sum_{k \in K} o_k^{\mathrm{cluster}}
++ \sum_{(i,j)\in D} \sum_{c \in E_i} \sum_{d \in E_j} q_{cd}\, z_{ijcd}
+\end{align}
+
+\paragraph{Subject to:\\}
+
+\textit{Assignment}
+\begin{align}
+\sum_{c \in E_i} x_{ic} &= 1 
+&& \forall i \in T \\
+x_{ic} &= 0 
+&& \forall i \in T,\; c \notin E_i
+\end{align}
+
+\textit{Timing}
+\begin{align}
+s_i &\ge r_i 
+&& \forall i \in T \\
+f_i &= s_i + \sum_{c \in C} p_i \alpha_c x_{ic} 
+&& \forall i \in T \\
+C_{\max} &\ge f_i 
+&& \forall i \in T
+\end{align}
+
+\textit{Precedence}
+\begin{align}
+s_j &\ge f_i 
+&& \forall (i,j) \in D
+\end{align}
+
+\textit{Core memory}
+\begin{align}
+\sum_{i \in T} m_i x_{ic} 
+&\le B_c^{\mathrm{core}} + o_c^{\mathrm{core}}
+&& \forall c \in C
+\end{align}
+
+\textit{Cluster memory}
+\begin{align}
+\sum_{i \in T} \sum_{c \in C_k} m_i x_{ic} 
+&\le B_k^{\mathrm{cluster}} + o_k^{\mathrm{cluster}}
+&& \forall k \in K
+\end{align}
+
+\textit{Non-overlap (same core)}
+\begin{align}
+s_j &\ge f_i - M(3 - y_{ij} - x_{ic} - x_{jc})
+&& \forall i<j,\; c \in C \\
+s_i &\ge f_j - M(2 + y_{ij} - x_{ic} - x_{jc})
+&& \forall i<j,\; c \in C
+\end{align}
+
+\textit{Communication linearization}
+\begin{align}
+z_{ijcd} &\le x_{ic}
+&& \forall (i,j)\in D,\; c\in E_i,\; d\in E_j \\
+z_{ijcd} &\le x_{jd}
+&& \forall (i,j)\in D,\; c\in E_i,\; d\in E_j \\
+z_{ijcd} &\ge x_{ic} + x_{jd} - 1
+&& \forall (i,j)\in D,\; c\in E_i,\; d\in E_j
+\end{align}
+
+\paragraph{Domains}
+\begin{align}
+x_{ic},\, y_{ij},\, z_{ijcd} &\in \{0,1\} \\
+s_i,\, f_i,\, C_{\max} &\ge 0 \\
+o_c^{\mathrm{core}},\, o_k^{\mathrm{cluster}} &\ge 0
+\end{align}
+\end{document}
