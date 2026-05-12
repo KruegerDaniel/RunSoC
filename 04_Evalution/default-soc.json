@@ -9,13 +9,13 @@
     "memoryPenaltyScale": {
       "coreOverflowScale": 1,
       "clusterOverflowScale": 2
-    }
+    },
+    "maxChainJitter": -1
   },
   "platform": {
     "name": "renesas_rcar_vh4_7",
     "numCores": 7,
     "numClusters": 5,
-    "globalScheduling": "partitioned_fixed_priority",
     "timeUnit": "us",
     "clusters": [
       {
@@ -80,11 +80,6 @@
         "type": "dram",
         "scope": "system",
         "accessibleBy": [
-          "app_cluster_0",
-          "app_cluster_1",
-          "rt_cluster_0",
-          "rt_cluster_1",
-          "rt_cluster_2"
         ],
         "technology": "LPDDR5",
         "capacityGB": 16,

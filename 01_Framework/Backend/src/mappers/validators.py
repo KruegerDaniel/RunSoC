@@ -1,4 +1,11 @@
-from schemas.schemas import Job, TaskChain, Task
+from schemas.schemas import Job, TaskChain, Task, Core
+
+
+def _validate_task_type_compatibility(task: Task, core: Core) -> None:
+    if not task.task_type in core.supported_task_types:
+        raise ValueError(
+            f"Core {core.id} does not support task type {task.task_type}"
+        )
 
 
 def _validate_cluster_core_count(raw_cluster: dict) -> None:

@@ -41,8 +41,10 @@ def build_feasibility_model(problem: ProblemInstance, effective_periods: dict[st
                 model.Add(y[t_id, c] == 0)
 
         # Task must be assigned to exactly one eligible core
-        if assigned_vars:
-            model.AddExactlyOne(assigned_vars)
+        if not assigned_vars:
+            raise ValueError(f"Task {t_id} has no eligible cores")
+
+        model.AddExactlyOne(assigned_vars)
 
     # Core Utilization (The CPU Check)
     for c in core_ids:
