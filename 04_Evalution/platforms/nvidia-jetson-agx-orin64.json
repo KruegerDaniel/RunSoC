@@ -14,21 +14,21 @@
   },
   "platform": {
     "name": "nvidia_jetson_agx_orin_64gb",
-    "numCores": 12,
-    "numClusters": 5,
+    "numCores": 14,
+    "numClusters": 6,
     "timeUnit": "us",
     "clusters": [
       {
         "name": "general_purpose_cluster",
-        "id": "gpp_cluster_0",
+        "id": "app_cluster_0",
         "type": "application",
         "numCores": 4,
-        "count": 2,
-        "notes": "Arm Cortex-A78AE CPU cluster with lockstep cores",
+        "count": 1,
+        "notes": "Arm Cortex-A78AE CPU cluster handling standard OS, fusion, and general tasks.",
         "cores": [
           {
-            "name": "lockstep_arm_cortex_a78ae",
-            "id": "core_01",
+            "name": "arm_cortex_a78ae",
+            "id": "core_a78ae_gp",
             "frequencyGhz": 2.2,
             "executionDomain": "general_purpose",
             "wcetScale": 1.0,
@@ -38,7 +38,7 @@
               "periodic"
             ],
             "count": 4,
-            "notes": "64KB L1 I-cache + 64KB L1 D-cache + 256KB L2 cache"
+            "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
           }
         ],
         "memory": [
@@ -46,21 +46,53 @@
             "type": "cache",
             "level": "L3",
             "sizeKB": 2048,
-            "notes": "2MB L3 Cache per CPU cluster"
+            "notes": "2 MB L3 Cache per CPU cluster."
           }
         ]
       },
       {
-        "name": "cpu_cluster",
-        "id": "safety_cluster",
+        "name": "automotive_comms_cluster",
+        "id": "comms_cluster_0",
+        "type": "application",
+        "numCores": 4,
+        "count": 1,
+        "notes": "Arm Cortex-A78AE CPU cluster dedicated to heavy networking stacks (10GbE, PCIe Gen4, CAN-FD).",
+        "cores": [
+          {
+            "name": "arm_cortex_a78ae",
+            "id": "core_a78ae_comms",
+            "frequencyGhz": 2.2,
+            "executionDomain": "automotive_comms",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 4,
+            "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
+          }
+        ],
+        "memory": [
+          {
+            "type": "cache",
+            "level": "L3",
+            "sizeKB": 2048,
+            "notes": "2 MB L3 Cache per CPU cluster."
+          }
+        ]
+      },
+      {
+        "name": "safety_cluster",
+        "id": "safety_cluster_0",
         "type": "safety",
         "numCores": 2,
         "count": 1,
-        "notes": "Arm Cortex-A78AE CPU cluster with lockstep cores",
+        "notes": "Arm Cortex-A78AE CPU cluster (4 physical cores) configured as 2 logical lockstep pairs for functional safety.",
         "cores": [
           {
             "name": "lockstep_arm_cortex_a78ae",
-            "id": "core_01",
+            "id": "core_a78ae_safety",
             "frequencyGhz": 2.2,
             "executionDomain": "safety",
             "wcetScale": 1.1,
@@ -70,7 +102,7 @@
               "periodic"
             ],
             "count": 2,
-            "notes": "Combined ARM Cortex-A78AE to lockstep"
+            "notes": "Lockstep execution enabled. L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
           }
         ],
         "memory": [
@@ -78,49 +110,102 @@
             "type": "cache",
             "level": "L3",
             "sizeKB": 2048,
-            "notes": "2MB L3 Cache per CPU cluster"
+            "notes": "2 MB L3 Cache per CPU cluster."
           }
         ]
       },
       {
-        "name": "aon_cluster",
-        "id": "aon_cluster",
+        "name": "sensor_processing_cluster",
+        "id": "sensor_cluster_0",
         "type": "sensor_processing",
         "numCores": 1,
-        "notes": "Sensor Processing Engine (SPE)",
+        "count": 1,
+        "notes": "Always-On (AON) cluster for Sensor Processing Engine (SPE).",
         "cores": [
           {
-            "name": "cortex_r5",
-            "id": "cortex_r5",
+            "name": "arm_cortex_r5_spe",
+            "id": "core_r5_spe",
+            "frequencyGhz": 1.0,
             "executionDomain": "sensor",
             "wcetScale": 1.0,
+            "localMemoryKB": 256,
             "supportedTaskTypes": [
               "event",
               "periodic"
             ],
-            "notes": "Arm Cortex-R5 processor with tightly coupled RAM"
+            "count": 1,
+            "notes": "Arm Cortex-R5 processor with tightly coupled memory (TCM) for low power sensor management."
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L2",
+            "sizeKB": 256,
+            "notes": "TCM interface for local SRAM."
           }
         ]
       },
       {
-        "name": "audio_cluster",
-        "id": "audio_cluster",
-        "type": "audio_processing",
-        "executionDomain": "audio",
-        "numCores": 1,
-        "notes": "Audio Subsystem (APE)",
+        "name": "vision_accelerator_cluster",
+        "id": "vision_cluster_0",
+        "type": "accelerator",
+        "numCores": 2,
+        "count": 1,
+        "notes": "Programmable Vision Accelerator (PVA) targeting computer-vision and algorithmic domains.",
         "cores": [
           {
-            "name": "cortex_a9",
-            "id": "cortex_a9",
-            "frequencyGhz": 2.0,
-            "executionDomain": "audio",
-            "wcetScale": 1.0,
+            "name": "pva_vector_processing_unit",
+            "id": "core_pva_vpu",
+            "frequencyGhz": 1.0,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.5,
+            "localMemoryKB": 384,
             "supportedTaskTypes": [
               "event",
               "periodic"
             ],
-            "notes": "Arm Cortex A9 processor with NEON"
+            "count": 2,
+            "notes": "Dual Vector Processing Units (VPU). Application-specific instruction vector processor. 384 KB memory per VPU."
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L2",
+            "sizeKB": 3072,
+            "notes": "1 MByte local L2 cache + 2 MB dedicated SRAM."
+          }
+        ]
+      },
+      {
+        "name": "security_cluster",
+        "id": "security_cluster_0",
+        "type": "security",
+        "numCores": 1,
+        "count": 1,
+        "notes": "Platform Security Controller (PSC) to manage assets and trusted services.",
+        "cores": [
+          {
+            "name": "riscv_psc",
+            "id": "core_riscv_sec",
+            "frequencyGhz": 0.8,
+            "executionDomain": "security",
+            "wcetScale": 1.2,
+            "localMemoryKB": 256,
+            "supportedTaskTypes": [
+              "event"
+            ],
+            "count": 1,
+            "notes": "RISC-V subsystem, PKC crypto (RSA3K). Event-driven."
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L1",
+            "sizeKB": 256,
+            "notes": "Secure execution memory."
           }
         ]
       }
@@ -131,13 +216,12 @@
         "name": "main_dram",
         "type": "dram",
         "scope": "system",
-        "accessibleBy": [
-        ],
+        "accessibleBy": [],
         "technology": "LPDDR5",
         "capacityGB": 64,
         "coherent": false,
         "contentionDomain": "mm_ddr",
-        "notes": "64GB 256-bit LPDDR5 DRAM"
+        "notes": "64 GB 256-bit LPDDR5 DRAM. Maximum operating frequency: 3200 MHz."
       }
     ]
   }
