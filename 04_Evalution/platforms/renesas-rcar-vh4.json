@@ -9,19 +9,20 @@
     "memoryPenaltyScale": {
       "coreOverflowScale": 1,
       "clusterOverflowScale": 2
-    },
-    "maxChainJitter": -1
+    }
   },
   "platform": {
     "name": "renesas_rcar_vh4_7",
     "numCores": 7,
     "numClusters": 5,
+    "globalScheduling": "partitioned_fixed_priority",
     "timeUnit": "us",
     "clusters": [
       {
         "name": "app_cluster_0",
         "id": "app_cluster_0",
         "type": "application",
+        "executionDomain": "general_purpose",
         "numCores": 2,
         "count": 2,
         "notes": "General compute cluster for ADAS/AD applications",
@@ -54,6 +55,7 @@
         "name": "rt_cluster_0",
         "id": "rt_cluster_0",
         "type": "safety",
+        "executionDomain": "safety",
         "numCores": 1,
         "count": 3,
         "notes": "Safety Island for ASIL tasks",
@@ -87,6 +89,5 @@
         "contentionDomain": "mm_ddr"
       }
     ]
-  },
-  "communicationPaths": []
+  }
 }

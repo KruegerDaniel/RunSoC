@@ -134,13 +134,44 @@ def run_solver_on_taskset(
             args=(solver_name, problem_instance, return_dict),
         )
         p.start()
-        p.join()
+        p.join(timeout_seconds)
 
-        if p.exitcode == 0 and 'solution' in return_dict:
-            solution = return_dict['solution']
+        if p.is_alive():
+            logger.error(f"  [!] Solver {solver_name} timed out after {timeout_seconds}s")
+            p.terminate()
+            p.join()
+
+            solution = {
+                "solver": solver_name,
+                "status": "TIMEOUT",
+                "feasible": False,
+                "objective": None,
+                "runtime_seconds": timeout_seconds,
+                "metadata": {
+                    "timeout_seconds": timeout_seconds,
+                },
+            }
+
+        elif p.exitcode == 0 and "solution" in return_dict:
+            solution = return_dict["solution"]
+
         else:
-            logger.error(f"  [!] Solver {solver_name} crashed or ran out of memory (Exit code: {p.exitcode})")
-            solution = {"error": f"Solver {solver_name} crashed or ran out of memory (Exit code: {p.exitcode})"}
+            logger.error(
+                f"  [!] Solver {solver_name} crashed or ran out of memory "
+                f"(Exit code: {p.exitcode})"
+            )
+
+            solution = {
+                "solver": solver_name,
+                "status": "CRASHED",
+                "feasible": False,
+                "objective": None,
+                "runtime_seconds": None,
+                "error": (
+                    f"Solver {solver_name} crashed or ran out of memory "
+                    f"(Exit code: {p.exitcode})"
+                ),
+            }
 
         write_solution(
             output_dir=output_dir,
@@ -167,6 +198,7 @@ def main(
             solver_names=solvers,
             output_dir=output_dir,
             mapper=mapper,
+            timeout_seconds=timeout_seconds,
         )
 
 
