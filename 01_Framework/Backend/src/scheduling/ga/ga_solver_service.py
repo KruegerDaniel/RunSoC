@@ -99,7 +99,7 @@ class GASolverService(BaseSolver):
             solver="GA",
             status=status,
             feasible=feasible,
-            objective=decoded["total_cost"],
+            objective=decoded["objective"],
             makespan=makespan,
             job_assignment=job_assignment,
             starts=starts,

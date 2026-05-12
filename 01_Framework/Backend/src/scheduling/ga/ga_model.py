@@ -173,12 +173,13 @@ class GaModel:
 
         weight_scalars = self.problem_instance.memory_penalty_scale
 
-        total_cost = (
+        objective_cost = (
                 weight_scalars.get("core_overflow_scale", 1) * sum(core_overflows.values())
                 + weight_scalars.get("cluster_overflow_scale", 1) * sum(cluster_overflows.values())
                 + comm_cost
-                + violation_cost
         )
+
+        total_cost = objective_cost + violation_cost
 
         return {
             "job_assignment": job_assignment,
@@ -190,8 +191,10 @@ class GaModel:
             "comm_cost": comm_cost,
             "deadline_violation": deadline_violation,
             "precedence_violation": precedence_violation,
+            "same_core_overlap_violation": same_core_overlap_violation,
             "constraint_violation": violation,
             "constraint_violation_cost": violation_cost,
+            "objective": objective_cost,
             "total_cost": total_cost,
         }
 
