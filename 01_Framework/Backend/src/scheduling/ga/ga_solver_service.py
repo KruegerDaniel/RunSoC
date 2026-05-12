@@ -4,8 +4,9 @@ from timeit import default_timer as timer
 from scheduling.base_solver import BaseSolver
 from scheduling.extractor import build_solution_response
 from scheduling.ga.ga_model import GaModel
+from scheduling.metrics import compute_memory_penalty, compute_deadline_violation
 from schemas.schemas import ProblemInstance
-from schemas.solver_result import SolverResult
+from schemas.solver_result import SolverResult, ObjectiveBreakdown
 
 logger = logging.getLogger(__name__)
 
@@ -95,11 +96,30 @@ class GASolverService(BaseSolver):
         finishes = decoded["finishes"]
         makespan = max(finishes.values()) if finishes else 0
 
+        memory_penalty = compute_memory_penalty(
+            problem_instance,
+            decoded["core_overflows"],
+            decoded["cluster_overflows"],
+        )
+
+        communication_penalty = decoded.get("comm_cost", 0) or 0
+
+        deadline_penalty = compute_deadline_violation(
+            problem_instance,
+            finishes,
+        )
+
         return SolverResult(
             solver="GA",
             status=status,
             feasible=feasible,
             objective=decoded["objective"],
+            objective_breakdown=ObjectiveBreakdown(
+                memory_penalty=memory_penalty,
+                communication_penalty=communication_penalty,
+                deadline_penalty=deadline_penalty,
+                constraint_violation_penalty=decoded.get("constraint_violation_cost", 0),
+            ),
             makespan=makespan,
             job_assignment=job_assignment,
             starts=starts,

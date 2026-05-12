@@ -1,11 +1,16 @@
+import gc
 import logging
 from timeit import default_timer as timer
 
-import gc
 from ortools.sat.python import cp_model
 
+from scheduling.metrics import (
+    compute_communication_penalty,
+    compute_deadline_violation,
+    compute_memory_penalty,
+)
 from schemas.schemas import ProblemInstance
-from schemas.solver_result import SolverResult
+from schemas.solver_result import SolverResult, ObjectiveBreakdown
 from .model_builder import build_model_cpsat
 from ..base_solver import BaseSolver
 from ..extractor import build_solution_response
@@ -145,11 +150,32 @@ class CpSolverService(BaseSolver):
 
         makespan = max(finishes.values())
 
+        memory_penalty = compute_memory_penalty(
+            problem_instance,
+            core_overflows,
+            cluster_overflows,
+        )
+
+        communication_penalty = compute_communication_penalty(
+            problem_instance,
+            job_assignment,
+        )
+
+        deadline_penalty = compute_deadline_violation(
+            problem_instance,
+            finishes,
+        )
+
         return SolverResult(
             solver=cls.name,
             status=status,
             feasible=True,
             objective=solver.ObjectiveValue() / time_scale,
+            objective_breakdown=ObjectiveBreakdown(
+                memory_penalty=memory_penalty,
+                communication_penalty=communication_penalty,
+                deadline_penalty=deadline_penalty,
+            ),
             makespan=makespan,
             job_assignment=job_assignment,
             starts=starts,

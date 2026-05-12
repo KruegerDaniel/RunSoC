@@ -173,6 +173,7 @@ def generate_tasksets(config: dict[str, Any]) -> None:
                     soc_template=soc_template_path,
                     num_tasks=num_tasks,
                     seed=generated_seed,
+                    platform_key=sanitize_platform_name(platform_name),
                 )
 
 

@@ -6,8 +6,9 @@ import pulp
 from scheduling.base_solver import BaseSolver
 from scheduling.extractor import build_solution_response
 from scheduling.ilp.ilp_model_builder import build_model
+from scheduling.metrics import compute_deadline_violation, compute_communication_penalty, compute_memory_penalty
 from schemas.schemas import ProblemInstance
-from schemas.solver_result import SolverResult
+from schemas.solver_result import SolverResult, ObjectiveBreakdown
 from utils.numerical_util import clean_num
 
 logger = logging.getLogger(__name__)
@@ -156,11 +157,32 @@ class IlpSolverService(BaseSolver):
             for cluster in problem_instance.clusters
         }
 
+        memory_penalty = compute_memory_penalty(
+            problem_instance,
+            core_overflows,
+            cluster_overflows,
+        )
+
+        communication_penalty = compute_communication_penalty(
+            problem_instance,
+            job_assignment,
+        )
+
+        deadline_penalty = compute_deadline_violation(
+            problem_instance,
+            finishes,
+        )
+
         return SolverResult(
             solver=cls.name,
             status=status,
             feasible=True,
             objective=cls._solved_number(model.objective),
+            objective_breakdown=ObjectiveBreakdown(
+                memory_penalty=memory_penalty,
+                communication_penalty=communication_penalty,
+                deadline_penalty=deadline_penalty,
+            ),
             makespan=makespan,
             job_assignment=job_assignment,
             starts=starts,

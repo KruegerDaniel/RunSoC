@@ -121,6 +121,10 @@ def run_solver_on_taskset(
     logger.info(f"Running taskset: {taskset_path.name}")
 
     taskset = load_taskset(taskset_path)
+    taskset.setdefault("evaluation", {})
+    taskset["evaluation"]["taskset_id"] = taskset_path.stem
+    taskset["evaluation"]["source_file"] = str(taskset_path)
+
     problem_instance = mapper.from_request_json(taskset)
 
     for solver_name in solver_names:

@@ -1,6 +1,7 @@
 import logging
 
 from mappers.job_expander import _expand_jobs, _derive_horizon
+from mappers.parse_evaluation_data import _parse_evaluation_metadata
 from mappers.platform_mapper import _parse_platform, _extract_memory_nodes, _parse_comms
 from mappers.request_config_mapper import _parse_config
 from mappers.task_chain_mapper import _parse_task_chains
@@ -48,6 +49,8 @@ class ProblemInstanceMapper:
             horizon=horizon,
         )
 
+        evaluation = _parse_evaluation_metadata(data)
+
         _validate_jobs_have_eligible_cores(jobs)
 
         logger.info(
@@ -79,4 +82,5 @@ class ProblemInstanceMapper:
             memory_penalty_scale=mem_scale,
             comms_penalty_weight=comms_weight,
             max_chain_jitter=max_jitter,
+            evaluation=evaluation,
         )

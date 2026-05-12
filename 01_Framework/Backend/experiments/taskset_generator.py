@@ -222,7 +222,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main(filename: str, output_dir: Path, soc_template: Path, num_tasks: int, seed: Optional[int] = None):
+def main(
+        filename: str,
+        output_dir: Path,
+        soc_template: Path,
+        num_tasks: int,
+        seed: Optional[int] = None,
+        platform_key: Optional[str] = None,
+):
     output_dir.mkdir(parents=True, exist_ok=True)
     if seed is not None:
         random.seed(seed)
@@ -231,6 +238,18 @@ def main(filename: str, output_dir: Path, soc_template: Path, num_tasks: int, se
 
     with open(soc_template, "r") as f:
         soc_data = json.load(f)
+
+    output_path = output_dir / filename
+    soc_data.setdefault("evaluation", {})
+    soc_data["evaluation"].update(
+        {
+            "taskset_id": output_path.stem,
+            "platform_key": platform_key,
+            "platform_name": soc_data.get("platform", {}).get("name"),
+            "source_file": str(output_path),
+            "seed": seed,
+        }
+    )
 
     output_path = write_taskset(
         output_dir=str(output_dir),
