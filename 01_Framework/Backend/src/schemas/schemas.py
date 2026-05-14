@@ -104,6 +104,13 @@ class MemoryNode(BaseModel):
     capacity: int
     notes: str = ""
 
+class EvaluationMetadata(BaseModel):
+    taskset_id: str | None = None
+    platform_name: str | None = None
+    platform_key: str | None = None
+    source_file: str | None = None
+    seed: int | None = None
+
 class ProblemInstance(BaseModel):
     # Runnable templates
     tasks: List[Task] = Field(default_factory=list)
@@ -139,3 +146,4 @@ class ProblemInstance(BaseModel):
         }
     )
 
+    evaluation: EvaluationMetadata = Field(default_factory=EvaluationMetadata)

@@ -45,7 +45,7 @@ class IlpSolverService(BaseSolver):
         )
 
         solver = pulp.PULP_CBC_CMD(
-            msg=True,
+            msg=False,
             keepFiles=self.keep_files,
             logPath="cbc.log" if self.keep_files else None,
             timeLimit=self.time_limit_seconds,

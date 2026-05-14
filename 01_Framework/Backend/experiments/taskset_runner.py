@@ -21,22 +21,87 @@ from scheduling.ilp.ilp_solver_service import IlpSolverService
 logger = logging.getLogger(__name__)
 
 feasability_service = feasability_service.FeasibilitySolverService()
+
 AVAILABLE_SOLVERS = {
     "CPSAT": CpSolverService,
     "CBC": IlpSolverService,
     "GA": GASolverService,
 }
 
-def _worker_solve(solver_name, problem_instance, return_dict):
+
+def _make_solver(solver_name: str, timeout_seconds: int):
+    solver_cls = AVAILABLE_SOLVERS[solver_name]
+    return solver_cls(time_limit_seconds=timeout_seconds)
+
+
+def _build_unsolved_solution(
+    solver_name: str,
+    status: str,
+    problem_instance,
+    runtime_seconds=None,
+    metadata: dict | None = None,
+    error: str | None = None,
+) -> dict:
+    solution = {
+        "solver": solver_name,
+        "status": status,
+        "feasible": False,
+        "objective": None,
+        "makespan": None,
+        "evaluation": (
+            problem_instance.evaluation.model_dump()
+            if hasattr(problem_instance, "evaluation")
+            and hasattr(problem_instance.evaluation, "model_dump")
+            else {}
+        ),
+        "summary": {
+            "task_template_count": len(problem_instance.tasks),
+            "job_count": len(problem_instance.jobs),
+            "scheduled_job_count": 0,
+            "task_chain_count": len(problem_instance.task_chains),
+            "dependency_template_count": len(problem_instance.dependencies),
+            "job_dependency_count": len(problem_instance.job_dependencies),
+            "core_count": len(problem_instance.cores),
+            "cluster_count": len(problem_instance.clusters),
+            "horizon": problem_instance.horizon,
+        },
+        "resource_usage": {
+            "core_memory": [],
+            "cluster_memory": [],
+        },
+        "schedule": [],
+        "runtime_seconds": runtime_seconds,
+        "metadata": metadata or {},
+    }
+
+    if error is not None:
+        solution["error"] = error
+
+    return solution
+
+
+def _worker_solve(solver_name, problem_instance, timeout_seconds, return_dict):
     """Runs in an isolated process to sandbox memory/crashes."""
-    solver = AVAILABLE_SOLVERS[solver_name]()
+    solver = _make_solver(solver_name, timeout_seconds)
+
     feasability = feasability_service.check_feasibility(problem_instance)
     is_feasible = feasability.get("feasible", False)
+
     if not is_feasible:
-        return_dict['solution'] = feasability
+        return_dict["solution"] = _build_unsolved_solution(
+            solver_name=solver_name,
+            status="PRESOLVER_INFEASIBLE",
+            problem_instance=problem_instance,
+            runtime_seconds=0,
+            metadata={
+                "presolver": feasability,
+            },
+        )
         return
+
     task_assignment = feasability.get("task_assignment", {})
-    return_dict['solution'] = solver.solve(problem_instance, hints=task_assignment)
+    return_dict["solution"] = solver.solve(problem_instance, hints=task_assignment)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -97,10 +162,10 @@ def load_taskset(taskset_path: Path) -> dict:
 
 
 def write_solution(
-        output_dir: Path,
-        taskset_name: str,
-        solver_name: str,
-        solution: dict,
+    output_dir: Path,
+    taskset_name: str,
+    solver_name: str,
+    solution: dict,
 ) -> None:
     taskset_output_dir = output_dir / taskset_name
     taskset_output_dir.mkdir(parents=True, exist_ok=True)
@@ -112,18 +177,18 @@ def write_solution(
 
 
 def run_solver_on_taskset(
-        taskset_path: Path,
-        solver_names: Iterable[str],
-        output_dir: Path,
-        mapper: ProblemInstanceMapper,
-        timeout_seconds: int = 300,
+    taskset_path: Path,
+    solver_names: Iterable[str],
+    output_dir: Path,
+    mapper: ProblemInstanceMapper,
+    timeout_seconds: int = 300,
 ) -> None:
     logger.info(f"Running taskset: {taskset_path.name}")
 
     taskset = load_taskset(taskset_path)
     taskset.setdefault("evaluation", {})
-    taskset["evaluation"]["taskset_id"] = taskset_path.stem
-    taskset["evaluation"]["source_file"] = str(taskset_path)
+    taskset["evaluation"].setdefault("taskset_id", taskset_path.stem)
+    taskset["evaluation"].setdefault("source_file", str(taskset_path))
 
     problem_instance = mapper.from_request_json(taskset)
 
@@ -135,8 +200,9 @@ def run_solver_on_taskset(
 
         p = multiprocessing.Process(
             target=_worker_solve,
-            args=(solver_name, problem_instance, return_dict),
+            args=(solver_name, problem_instance, timeout_seconds, return_dict),
         )
+
         p.start()
         p.join(timeout_seconds)
 
@@ -145,16 +211,16 @@ def run_solver_on_taskset(
             p.terminate()
             p.join()
 
-            solution = {
-                "solver": solver_name,
-                "status": "TIMEOUT",
-                "feasible": False,
-                "objective": None,
-                "runtime_seconds": timeout_seconds,
-                "metadata": {
+            solution = _build_unsolved_solution(
+                solver_name=solver_name,
+                status="TIMEOUT",
+                problem_instance=problem_instance,
+                runtime_seconds=timeout_seconds,
+                metadata={
                     "timeout_seconds": timeout_seconds,
                 },
-            }
+                error=f"Solver {solver_name} timed out after {timeout_seconds}s.",
+            )
 
         elif p.exitcode == 0 and "solution" in return_dict:
             solution = return_dict["solution"]
@@ -165,17 +231,19 @@ def run_solver_on_taskset(
                 f"(Exit code: {p.exitcode})"
             )
 
-            solution = {
-                "solver": solver_name,
-                "status": "CRASHED",
-                "feasible": False,
-                "objective": None,
-                "runtime_seconds": None,
-                "error": (
+            solution = _build_unsolved_solution(
+                solver_name=solver_name,
+                status="CRASHED",
+                problem_instance=problem_instance,
+                runtime_seconds=None,
+                metadata={
+                    "exitcode": p.exitcode,
+                },
+                error=(
                     f"Solver {solver_name} crashed or ran out of memory "
                     f"(Exit code: {p.exitcode})"
                 ),
-            }
+            )
 
         write_solution(
             output_dir=output_dir,
@@ -186,10 +254,10 @@ def run_solver_on_taskset(
 
 
 def main(
-        input_dir: Path = Path("input"),
-        output_dir: Path = Path("output"),
-        solvers: Iterable[str] = list(AVAILABLE_SOLVERS.keys()),
-        timeout_seconds: int = 300,
+    input_dir: Path = Path("input"),
+    output_dir: Path = Path("output"),
+    solvers: Iterable[str] = list(AVAILABLE_SOLVERS.keys()),
+    timeout_seconds: int = 300,
 ):
     mapper = ProblemInstanceMapper()
     taskset_files = find_taskset_files(input_dir)
@@ -209,4 +277,9 @@ def main(
 if __name__ == "__main__":
     args = parse_args()
     validate_args(args)
-    main()
+    main(
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        solvers=args.solvers,
+        timeout_seconds=args.timeout_seconds,
+    )
