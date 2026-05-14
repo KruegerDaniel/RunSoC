@@ -1,0 +1,229 @@
+{
+  "config": {
+    "generateComms": true,
+    "commsPenaltyWeight": {
+      "intraCoreWeight": 0,
+      "interCoreWeight": 8,
+      "interClusterWeight": 15
+    },
+    "memoryPenaltyScale": {
+      "coreOverflowScale": 1,
+      "clusterOverflowScale": 2
+    },
+    "maxChainJitter": -1
+  },
+  "platform": {
+    "name": "renesas_rcar_v4h_7",
+    "numCores": 12,
+    "numClusters": 6,
+    "timeUnit": "us",
+    "clusters": [
+      {
+        "name": "general_purpose_cluster",
+        "id": "app_cluster_0",
+        "type": "application",
+        "numCores": 2,
+        "count": 1,
+        "notes": "Arm Cortex-A76 CPU cluster handling standard OS and fusion tasks.",
+        "cores": [
+          {
+            "name": "arm_cortex_a76",
+            "id": "core_a76_gp",
+            "frequencyGhz": 1.8,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 2,
+            "notes": "L1: 1/64 KB per core. D/64 KB per core. L2: 256 KB per core."
+          }
+        ],
+        "memory": [
+          {
+            "type": "cache",
+            "level": "L3",
+            "sizeKB": 512,
+            "notes": "512 KB per cluster."
+          }
+        ]
+      },
+      {
+        "name": "automotive_comms_cluster",
+        "id": "comms_cluster_0",
+        "type": "application",
+        "numCores": 2,
+        "count": 1,
+        "notes": "Arm Cortex-A76 CPU cluster dedicated to networking stacks (Ethernet AVB/TSN, PCIe, CAN-FD).",
+        "cores": [
+          {
+            "name": "arm_cortex_a76",
+            "id": "core_a76_comms",
+            "frequencyGhz": 1.8,
+            "executionDomain": "automotive_comms",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 2,
+            "notes": "L1: 1/64 KB per core. D/64 KB per core. L2: 256 KB per core."
+          }
+        ],
+        "memory": [
+          {
+            "type": "cache",
+            "level": "L3",
+            "sizeKB": 512,
+            "notes": "512 KB per cluster."
+          }
+        ]
+      },
+      {
+        "name": "safety_cluster",
+        "id": "safety_cluster_0",
+        "type": "safety",
+        "numCores": 2,
+        "count": 1,
+        "notes": "Arm Cortex-R52 cores running in Dual Lock-Step for ASIL-D tasks.",
+        "cores": [
+          {
+            "name": "lockstep_arm_cortex_r52",
+            "id": "core_r52_safety",
+            "frequencyGhz": 1.4,
+            "executionDomain": "safety",
+            "wcetScale": 1.1,
+            "localMemoryKB": 160,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 2,
+            "notes": "L1 I/D cache 32K/32K bytes (ECC). ATCM/BTCM/CTCM (32K/32K/32K bytes) (ECC)."
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L2",
+            "sizeKB": 2048,
+            "notes": "RT-VRAM: 2 Mbytes."
+          }
+        ]
+      },
+      {
+        "name": "sensor_processing_cluster",
+        "id": "sensor_cluster_0",
+        "type": "sensor_processing",
+        "numCores": 1,
+        "count": 1,
+        "notes": "Arm Cortex-R52 core dedicated to hard-real-time sensor interrupts (ISP, Radar, Lidar).",
+        "cores": [
+          {
+            "name": "lockstep_arm_cortex_r52",
+            "id": "core_r52_sensor",
+            "frequencyGhz": 1.4,
+            "executionDomain": "sensor",
+            "wcetScale": 1.1,
+            "localMemoryKB": 160,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "L1 I/D cache 32K/32K bytes (ECC). ATCM/BTCM/CTCM (32K/32K/32K bytes) (ECC)."
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L2",
+            "sizeKB": 2048,
+            "notes": "Shared RT-VRAM access."
+          }
+        ]
+      },
+      {
+        "name": "vision_dsp_cluster",
+        "id": "vision_cluster_0",
+        "type": "accelerator",
+        "numCores": 4,
+        "count": 1,
+        "notes": "IMP-X7 CNN Engine with 4x CEVA-SP500M DSPs for vision and AI acceleration.",
+        "cores": [
+          {
+            "name": "ceva_sp500m_dsp",
+            "id": "core_dsp_vision",
+            "frequencyGhz": 0.64,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.4,
+            "localMemoryKB": 640,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 4,
+            "notes": "Highly parallel DSP core. WCET scaled down for vectorized vision workloads."
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L2",
+            "sizeKB": 2560,
+            "notes": "2.5MB memory per CNN engine."
+          }
+        ]
+      },
+      {
+        "name": "security_cluster",
+        "id": "security_cluster_0",
+        "type": "security",
+        "numCores": 1,
+        "count": 1,
+        "notes": "ICUMX Subsystem handling secure boot, AES, and user-defined security services.",
+        "cores": [
+          {
+            "name": "icup_processor",
+            "id": "core_icup_sec",
+            "frequencyGhz": 0.4,
+            "executionDomain": "security",
+            "wcetScale": 1.2,
+            "localMemoryKB": 128,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "Intelligent Cryptographic Unit Processor. Event-driven."
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L1",
+            "sizeKB": 128,
+            "notes": "Exclusive read/program access to specific confidential memory area."
+          }
+        ]
+      }
+    ],
+    "memoryNodes": [
+      {
+        "id": "mn_00",
+        "name": "main_dram",
+        "type": "dram",
+        "scope": "system",
+        "accessibleBy": [],
+        "technology": "LPDDR5/LPDDR4x",
+        "capacityGB": 16,
+        "coherent": false,
+        "contentionDomain": "mm_ddr",
+        "notes": "LPDDR4x-4266/LPDDR5-6400. Up to 16 GB."
+      }
+    ]
+  }
+}

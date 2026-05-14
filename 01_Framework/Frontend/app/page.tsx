@@ -23,11 +23,11 @@ function computeNodeDepths(runnables: Runnable[]) {
 
         const runnable = byId[id];
         if (!runnable) {
-            depths[id] = 0;
-            return 0;
+            return -1;
         }
 
-        const deps = runnable.dependencies ?? [];
+        const deps = (runnable.dependencies ?? []).filter((depId) => byId[depId]);
+
         if (deps.length === 0) {
             depths[id] = 0;
             return 0;
@@ -39,12 +39,12 @@ function computeNodeDepths(runnables: Runnable[]) {
         }
 
         visiting.add(id);
-        const childDepths = deps.map((depId) => getDepth(depId));
+        const depDepths = deps.map((depId) => getDepth(depId));
         visiting.delete(id);
 
-        const d = 1 + Math.max(...childDepths);
-        depths[id] = d;
-        return d;
+        const depth = Math.max(...depDepths) + 1;
+        depths[id] = depth;
+        return depth;
     };
 
     runnables.forEach((r) => getDepth(r.id));
@@ -78,13 +78,22 @@ export default function Home() {
         defaultValue: methods.getValues('runnables'),
     });
 
+    const graphKey = useMemo(
+        () =>
+            runnables
+                .map((r) => `${r.id}:${(r.dependencies ?? []).join(',')}`)
+                .join('|'),
+        [runnables],
+    );
+
     const nodes: Node[] = useMemo(() => {
         const depths = computeNodeDepths(runnables);
         const levels: string[][] = [];
 
-        Object.entries(depths).forEach(([id, depth]) => {
+        runnables.forEach((runnable) => {
+            const depth = depths[runnable.id] ?? 0;
             if (!levels[depth]) levels[depth] = [];
-            levels[depth].push(id);
+            levels[depth].push(runnable.id);
         });
 
         const nodeMap: Record<string, { x: number; y: number }> = {};
@@ -94,6 +103,7 @@ export default function Home() {
         levels.forEach((level, depth) => {
             const y = depth * verticalSpacing;
             const totalWidth = (level.length - 1) * horizontalSpacing;
+
             level.forEach((id, i) => {
                 const x = i * horizontalSpacing - totalWidth / 2;
                 nodeMap[id] = { x, y };
@@ -107,7 +117,7 @@ export default function Home() {
                 id: runnable.id,
                 data: {
                     label: runnable.name,
-                    runnableType:runnable.type,
+                    runnableType: runnable.type,
                 },
                 position: nodeMap[runnable.id] || { x: 0, y: 0 },
                 type: 'runnable',
@@ -166,6 +176,7 @@ export default function Home() {
     return (
         <div className="flex h-screen w-full flex-col gap-8 overflow-hidden px-4 sm:px-6 lg:px-8 py-8 md:flex-row">
             <RunnablePlayground
+                key={graphKey}
                 nodes={nodes}
                 edges={edges}
                 selection={selection}

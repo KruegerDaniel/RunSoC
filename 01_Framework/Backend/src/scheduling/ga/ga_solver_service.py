@@ -1,0 +1,144 @@
+import logging
+from timeit import default_timer as timer
+
+from scheduling.base_solver import BaseSolver
+from scheduling.extractor import build_solution_response
+from scheduling.ga.ga_model import GaModel
+from scheduling.metrics import compute_memory_penalty, compute_deadline_violation
+from schemas.schemas import ProblemInstance
+from schemas.solver_result import SolverResult, ObjectiveBreakdown
+
+logger = logging.getLogger(__name__)
+
+
+class GASolverService(BaseSolver):
+    name = "GA"
+
+    def __init__(self, ga_properties: dict | None = None, time_limit_seconds: int = 600):
+        self.ga_properties = ga_properties or self._default_ga_properties()
+        self.time_limit_seconds = time_limit_seconds
+
+    @staticmethod
+    def _default_ga_properties() -> dict:
+        return {
+            "num_generations": 500,  # Reduced max generations
+            "sol_per_pop": 30,  # Reduced population size
+            "num_parents_mating": 10,  # ~1/3 of the population
+            "parent_selection_type": "tournament",
+            "K_tournament": 3,
+            "keep_parents": 3,  # Increased elitism (don't lose best schedules)
+            "crossover_type": "uniform",  # Better mixing of Core & Priority genes
+            "mutation_type": "random",
+            "mutation_percent_genes": 15,  # Slightly higher mutation to prevent local minima
+            "stop_criteria": "saturate_50",  # Stop if no improvement for 50 generations
+        }
+
+    def solve(self, problem: ProblemInstance, hints: dict = None):
+        model = GaModel(problem, time_limit_seconds=self.time_limit_seconds)
+
+        logger.info(
+            "GA solve started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s | time_limit=%s",
+            len(problem.jobs),
+            len(problem.job_dependencies),
+            len(problem.cores),
+            len(problem.clusters),
+            self.time_limit_seconds,
+        )
+
+        start = timer()
+        # dynamic sol_per_pop
+        sol_per_pop = max(20, len(problem.tasks) * 15)
+        properties = {
+            **self.ga_properties,
+            "sol_per_pop": sol_per_pop,
+            "keep_parents": max(3, int(sol_per_pop * 0.1)),
+            "num_parents_mating": max(10, int(sol_per_pop * 0.4)),
+        }
+        decoded = model.solve(properties)
+        runtime_seconds = timer() - start
+        decoded["runtime_seconds"] = runtime_seconds
+
+        status = "FEASIBLE"
+        feasible = True
+
+        if decoded.get("constraint_violation", 0) > 0:
+            status = "INFEASIBLE"
+            feasible = False
+
+        logger.info(
+            "GA solve finished | status=%s | runtime_seconds=%.4f | gens=%d | strict_chain_violation=%s",
+            status,
+            runtime_seconds,
+            decoded.get("ga_metadata", {}).get("generations_completed", self.ga_properties["num_generations"]),
+            decoded.get("strict_chain_violation", 0),
+        )
+
+        normalized_result = self._to_normalized_result(
+            problem_instance=problem,
+            decoded=decoded,
+            status=status,
+            feasible=feasible,
+            ga_properties=properties,
+        )
+
+        return build_solution_response(problem, normalized_result)
+
+    @staticmethod
+    def _to_normalized_result(
+            problem_instance: ProblemInstance,
+            decoded: dict,
+            status: str,
+            feasible: bool,
+            ga_properties: dict = None,
+    ) -> SolverResult:
+        job_assignment = decoded["job_assignment"]
+        starts = decoded["starts"]
+        finishes = decoded["finishes"]
+        makespan = max(finishes.values()) if finishes else 0
+
+        memory_penalty = compute_memory_penalty(
+            problem_instance,
+            decoded["core_overflows"],
+            decoded["cluster_overflows"],
+        )
+
+        communication_penalty = decoded.get("comm_cost", 0) or 0
+
+        deadline_penalty = compute_deadline_violation(
+            problem_instance,
+            finishes,
+        )
+
+        return SolverResult(
+            solver="GA",
+            status=status,
+            feasible=feasible,
+            objective=decoded["objective"],
+            objective_breakdown=ObjectiveBreakdown(
+                memory_penalty=memory_penalty,
+                communication_penalty=communication_penalty,
+                deadline_penalty=deadline_penalty,
+                constraint_violation_penalty=decoded.get("constraint_violation_cost", 0),
+            ),
+            makespan=makespan,
+            job_assignment=job_assignment,
+            starts=starts,
+            finishes=finishes,
+            core_overflows=decoded["core_overflows"],
+            cluster_overflows=decoded["cluster_overflows"],
+            raw_status=1,
+            runtime_seconds=decoded["runtime_seconds"],
+            metadata={
+                "ga_properties": {**ga_properties},
+                "fitness": decoded.get("fitness"),
+                "comm_cost": decoded.get("comm_cost"),
+                "priority_order": decoded.get("priority_order"),
+                "strict_chain_violation": decoded.get("strict_chain_violation", 0),
+                "precedence_violation": decoded.get("precedence_violation", 0),
+                "core_overlap_violation": decoded.get("core_overlap_violation", 0),
+                "constraint_violation": decoded.get("constraint_violation", 0),
+                "constraint_violation_cost": decoded.get("constraint_violation_cost", 0),
+                "ga_metadata": decoded.get("ga_metadata", {}),
+                **decoded.get("metadata", {}),
+            },
+        )

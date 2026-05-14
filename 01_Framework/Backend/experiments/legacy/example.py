@@ -70,7 +70,7 @@ def plot_schedule(log_data, title, ax, color_mapping=None, total_cores=None):
 
 # Ensure output directory exists
 output_dir = os.path.normpath(os.path.join(
-    os.path.dirname(__file__), '../Images/backend'))
+    os.path.dirname(__file__), '../../Images/backend'))
 os.makedirs(output_dir, exist_ok=True)
 
 

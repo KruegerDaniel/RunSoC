@@ -1,0 +1,52 @@
+{
+  "platforms": [
+    {
+      "name": "renesas",
+      "soc_template_path": "platforms/renesas-rcar-vh4.json"
+    },
+    {
+      "name": "nvidia",
+      "soc_template_path": "platforms/nvidia-jetson-agx-orin64.json"
+    },
+    {
+      "name": "ti",
+      "soc_template_path": "platforms/ti-tda4vm.json"
+    }
+  ],
+  "solvers": [
+    "GA",
+    "CBC",
+    "CPSAT"
+  ],
+  "timeout_seconds": 600,
+  "generated_tasksets_dir": "output/generated_tasksets",
+  "solver_outputs_dir": "output/solutions",
+  "seed": 12345,
+  "tasksets": [
+    {
+      "num_tasks": 10,
+      "count": 50,
+      "filename_prefix": "taskset_10"
+    },
+    {
+      "num_tasks": 25,
+      "count": 50,
+      "filename_prefix": "taskset_25"
+    },
+    {
+      "num_tasks": 50,
+      "count": 50,
+      "filename_prefix": "taskset_50"
+    },
+    {
+      "num_tasks": 100,
+      "count": 50,
+      "filename_prefix": "taskset_100"
+    },
+    {
+      "num_tasks": 200,
+      "count": 50,
+      "filename_prefix": "taskset_200"
+    }
+  ]
+}

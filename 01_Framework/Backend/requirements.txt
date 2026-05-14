@@ -3,3 +3,8 @@ Flask-CORS==4.0.0
 matplotlib==3.7.2
 numpy==1.24.3
 gunicorn
+pulp
+python-dotenv
+ortools
+pygad
+pydantic

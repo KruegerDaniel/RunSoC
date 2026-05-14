@@ -15,22 +15,10 @@ finite DAG-style schedule. Periodic tasks behave as sources with eta_i = 0.
 
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
 from math import ceil, inf
 from typing import Dict, List, Optional, Tuple
 
-import matplotlib.patches as mpatches
-import matplotlib.pyplot as plt
-
-
-@dataclass
-class ScheduleEntry:
-    task: str
-    start_time: int
-    finish_time: int
-    core: int
-    eligible_time: int
+from schemas.schedule_entry import ScheduleEntry
 
 
 def topology(tasks: Dict[str, Dict]) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
@@ -50,6 +38,7 @@ def order_eligible(eligible: List[str], tasks: Dict[str, Dict], eta: Dict[str, i
         def key_fn(name: str):
             p_i = int(tasks[name].get("priority", 0))
             return (-p_i, int(eta.get(name, 0)), name)
+
         return sorted(eligible, key=key_fn)
     # fcfs
     return sorted(eligible, key=lambda n: (int(eta.get(n, 0)), n))
@@ -84,14 +73,15 @@ def compute_parallelism_bounds(tasks: Dict[str, Dict], num_cores: int) -> Tuple[
         for name in list(remaining_tasks):
             if all(p in task_path_length for p in predecessors[name]):
                 task_path_length[name] = max((task_path_length[p] + int(tasks[p]["execution_time"])
-                                                  for p in predecessors[name]), default=0)
+                                              for p in predecessors[name]), default=0)
                 remaining_tasks.remove(name)
                 progressed = True
         if not progressed:
             # Cycles (shouldn't happen in a DAG); break conservatively
             break
     T_CP = max((task_path_length[n] + int(tasks[n]["execution_time"])
-               for n in task_path_length), default=0)
+                for n in task_path_length), default=0)
+
     # Approx P_max: max number of simultaneously ready sources after releases -> count of nodes with no preds
 
     def calculate_max_parallelism() -> int:
@@ -132,10 +122,10 @@ def compute_parallelism_bounds(tasks: Dict[str, Dict], num_cores: int) -> Tuple[
     p_max = calculate_max_parallelism()
 
     def calculate_min_core_count(
-        num_cores: int,
-        total_work: int,
-        critical_path: int,
-        epsilon: float = 0.9,
+            num_cores: int,
+            total_work: int,
+            critical_path: int,
+            epsilon: float = 0.9,
     ) -> int:
         """Compute N_min = ceil( (epsilon * p) / (s * (1 - epsilon)) ) per DAG-aware Amdahl's law.
 
@@ -166,6 +156,7 @@ def compute_parallelism_bounds(tasks: Dict[str, Dict], num_cores: int) -> Tuple[
 
     return p_max, n_min
 
+
 # Patch: ensure next_rel considers only releases strictly after current tau to avoid stalling
 # Re-run the two scenarios
 
@@ -173,11 +164,11 @@ def compute_parallelism_bounds(tasks: Dict[str, Dict], num_cores: int) -> Tuple[
 
 
 def run_main_scheduler(
-    tasks: Dict[str, Dict],
-    num_cores: int,
-    scheduling_policy: str = "fcfs",
-    allocation_policy: str = "dynamic",
-    I: Optional[int] = None,
+        tasks: Dict[str, Dict],
+        num_cores: int,
+        scheduling_policy: str = "fcfs",
+        allocation_policy: str = "dynamic",
+        I: Optional[int] = None,
 ) -> Tuple[List[ScheduleEntry], int, int]:
     """Execute the main scheduling algorithm for a finite DAG per iteration.
 
@@ -251,8 +242,6 @@ def run_main_scheduler(
             running[(n, t)] = (finish, assigned_core)
             schedule.append(ScheduleEntry(
                 n, start, finish, assigned_core, eligible_time=t))
-            # print(ScheduleEntry(
-            #     n, start, finish, assigned_core, eligible_time=t))
             T_i = int(tasks[n].get("period", 0))
             next_active = t + T_i
             if T_i > 0 and next_active < T_end:
@@ -297,7 +286,7 @@ def run_main_scheduler(
             if phi and start[name] + t_i > next_active and start[name] <= tau:
                 first_phi_key = min(phi.keys())
                 delayed_start_time = next_active + \
-                    tasks[first_phi_key]["execution_time"]
+                                     tasks[first_phi_key]["execution_time"]
                 total_delay += delayed_start_time - start[name]
                 start[name] = delayed_start_time
             else:

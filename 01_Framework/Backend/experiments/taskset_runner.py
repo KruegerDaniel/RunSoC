@@ -1,0 +1,285 @@
+import argparse
+import json
+import logging
+import multiprocessing
+import sys
+from pathlib import Path
+from typing import Iterable
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+SRC_DIR = BACKEND_DIR / "src"
+
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from mappers.problem_instance_mapper import ProblemInstanceMapper
+from scheduling.cpsat.cp_solver_service import CpSolverService
+from services.presolver import feasability_service
+from scheduling.ga.ga_solver_service import GASolverService
+from scheduling.ilp.ilp_solver_service import IlpSolverService
+
+logger = logging.getLogger(__name__)
+
+feasability_service = feasability_service.FeasibilitySolverService()
+
+AVAILABLE_SOLVERS = {
+    "CPSAT": CpSolverService,
+    "CBC": IlpSolverService,
+    "GA": GASolverService,
+}
+
+
+def _make_solver(solver_name: str, timeout_seconds: int):
+    solver_cls = AVAILABLE_SOLVERS[solver_name]
+    return solver_cls(time_limit_seconds=timeout_seconds)
+
+
+def _build_unsolved_solution(
+    solver_name: str,
+    status: str,
+    problem_instance,
+    runtime_seconds=None,
+    metadata: dict | None = None,
+    error: str | None = None,
+) -> dict:
+    solution = {
+        "solver": solver_name,
+        "status": status,
+        "feasible": False,
+        "objective": None,
+        "makespan": None,
+        "evaluation": (
+            problem_instance.evaluation.model_dump()
+            if hasattr(problem_instance, "evaluation")
+            and hasattr(problem_instance.evaluation, "model_dump")
+            else {}
+        ),
+        "summary": {
+            "task_template_count": len(problem_instance.tasks),
+            "job_count": len(problem_instance.jobs),
+            "scheduled_job_count": 0,
+            "task_chain_count": len(problem_instance.task_chains),
+            "dependency_template_count": len(problem_instance.dependencies),
+            "job_dependency_count": len(problem_instance.job_dependencies),
+            "core_count": len(problem_instance.cores),
+            "cluster_count": len(problem_instance.clusters),
+            "horizon": problem_instance.horizon,
+        },
+        "resource_usage": {
+            "core_memory": [],
+            "cluster_memory": [],
+        },
+        "schedule": [],
+        "runtime_seconds": runtime_seconds,
+        "metadata": metadata or {},
+    }
+
+    if error is not None:
+        solution["error"] = error
+
+    return solution
+
+
+def _worker_solve(solver_name, problem_instance, timeout_seconds, return_dict):
+    """Runs in an isolated process to sandbox memory/crashes."""
+    solver = _make_solver(solver_name, timeout_seconds)
+
+    feasability = feasability_service.check_feasibility(problem_instance)
+    is_feasible = feasability.get("feasible", False)
+
+    if not is_feasible:
+        return_dict["solution"] = _build_unsolved_solution(
+            solver_name=solver_name,
+            status="PRESOLVER_INFEASIBLE",
+            problem_instance=problem_instance,
+            runtime_seconds=0,
+            metadata={
+                "presolver": feasability,
+            },
+        )
+        return
+
+    task_assignment = feasability.get("task_assignment", {})
+    return_dict["solution"] = solver.solve(problem_instance, hints=task_assignment)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run taskset JSON files against selected solvers."
+    )
+
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=Path("input"),
+        help="Directory containing taskset JSON files.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("output"),
+        help="Directory where solver outputs will be written.",
+    )
+    parser.add_argument(
+        "--solvers",
+        nargs="+",
+        default=list(AVAILABLE_SOLVERS.keys()),
+        choices=AVAILABLE_SOLVERS.keys(),
+        help="Solvers to run.",
+    )
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=300,
+        help="Timeout for each solver in seconds.",
+    )
+
+    return parser.parse_args()
+
+
+def validate_args(args: argparse.Namespace) -> None:
+    if not args.input_dir.is_dir():
+        raise ValueError(f"Input directory does not exist: {args.input_dir}")
+
+    if args.timeout_seconds < 1:
+        raise ValueError(
+            f"Timeout must be greater than 0, got {args.timeout_seconds}."
+        )
+
+
+def find_taskset_files(input_dir: Path) -> list[Path]:
+    json_files = sorted(input_dir.glob("*.json"))
+
+    if not json_files:
+        raise ValueError(f"No JSON taskset files found in: {input_dir}")
+
+    return json_files
+
+
+def load_taskset(taskset_path: Path) -> dict:
+    with taskset_path.open("r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def write_solution(
+    output_dir: Path,
+    taskset_name: str,
+    solver_name: str,
+    solution: dict,
+) -> None:
+    taskset_output_dir = output_dir / taskset_name
+    taskset_output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = taskset_output_dir / f"{solver_name}_solution.json"
+
+    with output_path.open("w", encoding="utf-8") as file:
+        json.dump(solution, file, indent=2)
+
+
+def run_solver_on_taskset(
+    taskset_path: Path,
+    solver_names: Iterable[str],
+    output_dir: Path,
+    mapper: ProblemInstanceMapper,
+    timeout_seconds: int = 300,
+) -> None:
+    logger.info(f"Running taskset: {taskset_path.name}")
+
+    taskset = load_taskset(taskset_path)
+    taskset.setdefault("evaluation", {})
+    taskset["evaluation"].setdefault("taskset_id", taskset_path.stem)
+    taskset["evaluation"].setdefault("source_file", str(taskset_path))
+
+    problem_instance = mapper.from_request_json(taskset)
+
+    for solver_name in solver_names:
+        logger.info(f"  Running solver: {solver_name}")
+
+        manager = multiprocessing.Manager()
+        return_dict = manager.dict()
+
+        p = multiprocessing.Process(
+            target=_worker_solve,
+            args=(solver_name, problem_instance, timeout_seconds, return_dict),
+        )
+
+        p.start()
+        p.join(timeout_seconds)
+
+        if p.is_alive():
+            logger.error(f"  [!] Solver {solver_name} timed out after {timeout_seconds}s")
+            p.terminate()
+            p.join()
+
+            solution = _build_unsolved_solution(
+                solver_name=solver_name,
+                status="TIMEOUT",
+                problem_instance=problem_instance,
+                runtime_seconds=timeout_seconds,
+                metadata={
+                    "timeout_seconds": timeout_seconds,
+                },
+                error=f"Solver {solver_name} timed out after {timeout_seconds}s.",
+            )
+
+        elif p.exitcode == 0 and "solution" in return_dict:
+            solution = return_dict["solution"]
+
+        else:
+            logger.error(
+                f"  [!] Solver {solver_name} crashed or ran out of memory "
+                f"(Exit code: {p.exitcode})"
+            )
+
+            solution = _build_unsolved_solution(
+                solver_name=solver_name,
+                status="CRASHED",
+                problem_instance=problem_instance,
+                runtime_seconds=None,
+                metadata={
+                    "exitcode": p.exitcode,
+                },
+                error=(
+                    f"Solver {solver_name} crashed or ran out of memory "
+                    f"(Exit code: {p.exitcode})"
+                ),
+            )
+
+        write_solution(
+            output_dir=output_dir,
+            taskset_name=taskset_path.stem,
+            solver_name=solver_name,
+            solution=solution,
+        )
+
+
+def main(
+    input_dir: Path = Path("input"),
+    output_dir: Path = Path("output"),
+    solvers: Iterable[str] = list(AVAILABLE_SOLVERS.keys()),
+    timeout_seconds: int = 300,
+):
+    mapper = ProblemInstanceMapper()
+    taskset_files = find_taskset_files(input_dir)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for taskset_path in taskset_files:
+        run_solver_on_taskset(
+            taskset_path=taskset_path,
+            solver_names=solvers,
+            output_dir=output_dir,
+            mapper=mapper,
+            timeout_seconds=timeout_seconds,
+        )
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    validate_args(args)
+    main(
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        solvers=args.solvers,
+        timeout_seconds=args.timeout_seconds,
+    )
