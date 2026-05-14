@@ -1,0 +1,70 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{mathtools}
+\usepackage{hyperref}
+
+\pagenumbering{gobble}
+
+\begin{document}
+
+\section{Pre-Check ILP Formulation}
+
+Let \(T\) be the set of tasks and \(C\) the set of cores.
+For each task \(t \in T\), let \(E_t \subseteq C\) denote its eligible cores,
+\(d_t\) its execution time, and \(p_t\) its effective period.
+For each core \(c \in C\), let \(s_c\) denote its WCET scaling factor.
+
+The decision variable is defined as
+\[
+y_{t,c} =
+\begin{cases}
+1, & \text{if task } t \text{ is assigned to core } c,\\
+0, & \text{otherwise.}
+\end{cases}
+\]
+
+The auxiliary variable \(U_{\max}\) denotes the maximum utilization over all
+cores.
+
+\subsection*{Model}
+
+\begin{align}
+\min \quad & U_{\max}
+\end{align}
+
+\subsection*{Subject to}
+
+\paragraph{Task assignment.}
+Each task must be assigned to exactly one eligible core:
+\begin{align}
+\sum_{c \in E_t} y_{t,c} &= 1
+&& \forall t \in T.
+\end{align}
+
+Assignments to ineligible cores are forbidden:
+\begin{align}
+y_{t,c} &= 0
+&& \forall t \in T,\; c \in C \setminus E_t.
+\end{align}
+
+\paragraph{Core utilization bound.}
+For each core, the total scaled utilization of the tasks assigned to that core
+must not exceed \(U_{\max}\):
+\begin{align}
+\sum_{t \in T : c \in E_t}
+\frac{d_t s_c}{p_t} \, y_{t,c}
+&\leq U_{\max}
+&& \forall c \in C.
+\end{align}
+
+\subsection*{Domains}
+
+\begin{align}
+y_{t,c} &\in \{0,1\}
+&& \forall t \in T,\; c \in C,\\
+U_{\max} &\geq 0.
+\end{align}
+
+\end{document}

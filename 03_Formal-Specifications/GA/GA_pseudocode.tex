@@ -4,235 +4,438 @@
 \usepackage{amsmath}
 
 \begin{document}
-    \begin{algorithm}[H]
-        \caption{Genetic Algorithm Scheduler}
-        \label{alg:ga_scheduler}
-        \begin{algorithmic}[1]
-            \Require Task set $T$, core set $C$, cluster set $K$, dependency set $D$
-            \Require Eligible cores $E_i \subseteq C$ for each task $i \in T$
-            \Require Task duration $d_i$, memory demand $m_i$, minimum start time $r_i$
-            \Require Core memory budget $B^{core}_c$, core WCET scale $ets_c$
-            \Require Cluster memory budget $B^{cluster}_k$
-            \Require Communication penalties and memory penalty weights
-            \Ensure Best decoded schedule found by the genetic algorithm
 
-            \State $N \gets |T|$
-            \State Define chromosome length $2N$
-            \Comment{(First $N$ genes encode core assignment, last $N$ genes encode task priority)}
+\begin{algorithm}[H]
+    \caption{Genetic Algorithm Scheduler}
+    \label{alg:ga_scheduler}
+    \begin{algorithmic}[1]
+        \Require Task set $T$, job set $J$, core set $C$, cluster set $K$
+        \Require Job dependency set $D_{\mathrm{job}}$, task dependency set $D_{\mathrm{task}}$
+        \Require Eligible cores $E_t \subseteq C$ for each task $t \in T$
+        \Require Job release times $r_j$, durations $p_j$, deadlines $d_j$
+        \Require Task memory demands $m_t$
+        \Require Core memory budgets $B^{\mathrm{core}}_c$, core WCET scales $\alpha_c$
+        \Require Cluster memory budgets $B^{\mathrm{cluster}}_k$
+        \Require Communication penalties and penalty weights
+        \Require Time limit and maximum generation count
+        \Ensure Best decoded schedule found by the genetic algorithm
 
-            \Statex
-            \State Define gene space:
-            \For{each task $i \in T$}
-                \State gene $x_i \in \{0, \ldots, |E_i|-1\}$
-                \Comment{Index into eligible core list}
+        \State $N \gets |T|$
+        \State Define chromosome length $2N$
+        \Comment{First $N$ genes encode task assignment, last $N$ genes encode task priority}
+
+        \Statex
+        \State Define gene space:
+        \For{each task $t \in T$}
+            \State assignment gene $a_t \in \{0,\ldots,|E_t|-1\}$
+            \Comment{Index into eligible core list}
+        \EndFor
+        \For{each task $t \in T$}
+            \State priority gene $\pi_t \in [0,1]$
+        \EndFor
+
+        \Statex
+        \State Initialize GA population
+        \While{time limit and generation limit are not reached}
+            \For{each chromosome $x$ in population}
+                \State $\phi(x) \gets \Call{Fitness}{x}$
             \EndFor
-            \For{each task $i \in T$}
-                \State gene $p_i \in [0,1)$
-                \Comment{Priority value}
-            \EndFor
+            \State Create next generation using GA selection, crossover, and mutation
+        \EndWhile
 
-            \Statex
-            \State Initialize GA population
-            \While{termination criterion not satisfied}
-                \For{each chromosome $x$ in population}
-                    \State $F(x) \gets \Call{Fitness}{x}$
-                \EndFor
-                \State Create next generation using GA selection and variation operators
-            \EndWhile
+        \State $x^\star \gets$ best chromosome found
+        \State \Return $\Call{DecodeChromosome}{x^\star}$
+    \end{algorithmic}
+\end{algorithm}
 
-            \State $x^\star \gets$ best chromosome found
-            \State \Return $\Call{DecodeChromosome}{x^\star}$
-        \end{algorithmic}
-    \end{algorithm}
-    \begin{algorithm}[H]
-        \caption{Fitness Evaluation}
-        \label{alg:fitness}
-        \begin{algorithmic}[1]
-            \Require Chromosome $x$
-            \Ensure Fitness value $\phi(x)$
+\begin{algorithm}[H]
+    \caption{Fitness Evaluation}
+    \label{alg:fitness}
+    \begin{algorithmic}[1]
+        \Require Chromosome $x$, current generation $g$
+        \Ensure Fitness value $\phi(x)$
 
-            \State $(A, P, S, F, C_{\max}, O^{core}, O^{cluster}, Q, J) \gets \Call{DecodeChromosome}{x}$
+        \State decoded solution $\gets \Call{DecodeChromosome}{x,g}$
+        \State $J_{\mathrm{total}} \gets$ decoded solution total cost
+        \State $\phi(x) \gets \dfrac{1}{1 + J_{\mathrm{total}}}$
 
-            \Statex
-            \State $\phi(x) \gets \dfrac{1}{1 + J}$
+        \State \Return $\phi(x)$
+    \end{algorithmic}
+\end{algorithm}
 
-            \State \Return $\phi(x)$
-        \end{algorithmic}
-    \end{algorithm}
-    \begin{algorithm}[H]
-        \caption{Decode Chromosome}
-        \label{alg:decode_chromosome}
-        \begin{algorithmic}[1]
-            \Require Chromosome $x$ of length $2N$
-            \Ensure Assignment, priority order, start times, finish times, max span, core overflow, cluster overflow, and total cost
+\begin{algorithm}[H]
+    \caption{Decode Chromosome}
+    \label{alg:decode_chromosome}
+    \begin{algorithmic}[1]
+        \Require Chromosome $x$ of length $2|T|$, current generation $g$
+        \Ensure Assignment, priority order, schedule, violations, objective cost, and total cost
 
-            \State $A \gets \Call{DecodeAssignment}{x}$
-            \State $P \gets \Call{DecodePriorityOrder}{x}$
-            \State $(S, F) \gets \Call{BuildSchedule}{A, P}$
+        \State $A^T \gets \Call{DecodeTaskAssignment}{x}$
+        \Comment{Task-to-core assignment}
+        \State $\Pi^T \gets \Call{DecodeTaskPriority}{x}$
+        \Comment{Task priority values}
 
+        \Statex
+        \For{each job $j \in J$}
+            \State $A^J_j \gets A^T_{\tau(j)}$
+            \Comment{Jobs inherit the core of their parent task}
+        \EndFor
 
-            \State $C_{\max} \gets \max_{i \in T} F_i$
+        \State $P^J \gets \Call{DeriveJobPriorityOrder}{\Pi^T}$
+        \State $(S,F) \gets \Call{BuildSchedule}{A^J,P^J}$
 
-            \State $(O^{core}, O^{cluster}) \gets \Call{MemoryOverflow}{A}$
-            \State $Q \gets \Call{CommunicationCost}{A}$
+        \Statex
+        \State $(O^{\mathrm{core}},O^{\mathrm{cluster}}) \gets \Call{MemoryOverflow}{A^T}$
+        \State $Q \gets \Call{CommunicationCost}{A^T}$
 
-            \Statex
-            \State $J \gets C_{\max}$
-            \State $J \gets J + \lambda_{core} \sum_{c \in C} O^{core}_c$
-            \State $J \gets J + \lambda_{cluster} \sum_{k \in K} O^{cluster}_k$
-            \State $J \gets J + Q$
+        \Statex
+        \State $V_{\mathrm{prec}} \gets \Call{PrecedenceViolation}{S,F}$
+        \State $V_{\mathrm{dead}} \gets \Call{TerminalDeadlineViolation}{F}$
+        \State $V_{\mathrm{overlap}} \gets \Call{SameCoreOverlapViolation}{S,F,A^J}$
+        \State $V_{\mathrm{jitter}} \gets \Call{JitterViolation}{S}$
+        \State $V \gets V_{\mathrm{prec}} + V_{\mathrm{dead}} + V_{\mathrm{overlap}} + V_{\mathrm{jitter}}$
 
-            \State \Return $(A, P, S, F, C_{\max}, O^{core}, O^{cluster}, Q, J)$
-        \end{algorithmic}
-    \end{algorithm}
-    \begin{algorithm}[H]
-        \caption{Decode Assignment}
-        \label{alg:decode_assignment}
-        \begin{algorithmic}[1]
-            \Require Chromosome $x$
-            \Ensure Core assignment $A_i$ for each task $i \in T$
+        \Statex
+        \State $\gamma \gets \min\left(1,\dfrac{g}{G_{\max}}\right)$
+        \State $w_V \gets 100 + 999900 \cdot \gamma$
+        \State $J_{\mathrm{viol}} \gets w_V \cdot V$
 
-            \For{each task $i \in T$}
-                \State $q_i \gets \mathrm{round}(x_i)$
-                \State $q_i \gets \max(0, \min(q_i, |E_i|-1))$
-                \Comment{Clamp to valid eligible-core index}
-                \State $A_i \gets E_i[q_i]$
-            \EndFor
+        \Statex
+        \State $J_{\mathrm{obj}} \gets
+        \lambda_{\mathrm{core}} \sum_{c \in C} O^{\mathrm{core}}_c
+        + \lambda_{\mathrm{cluster}} \sum_{k \in K} O^{\mathrm{cluster}}_k
+        + Q$
 
-            \State \Return $A$
-        \end{algorithmic}
-    \end{algorithm}
-    \begin{algorithm}[H]
-        \caption{Decode Priority Order}
-        \label{alg:decode_priority}
-        \begin{algorithmic}[1]
-            \Require Chromosome $x$
-            \Ensure Priority order $P$
+        \State $J_{\mathrm{total}} \gets J_{\mathrm{obj}} + J_{\mathrm{viol}}$
 
-            \State $L \gets [\ ]$
-            \For{each task $i \in T$}
-                \State $p_i \gets x_{N+i}$
-                \Comment{Priority gene for task $i$}
-                \State Append $(i, p_i)$ to $L$
-            \EndFor
+        \State \Return $(A^J,P^J,S,F,O^{\mathrm{core}},O^{\mathrm{cluster}},Q,V,J_{\mathrm{obj}},J_{\mathrm{total}})$
+    \end{algorithmic}
+\end{algorithm}
 
-            \State Sort $L$ by descending $p_i$
-            \State Break ties by original task index
-            \State $P \gets$ ordered task IDs from $L$
+\begin{algorithm}[H]
+    \caption{Decode Task Assignment}
+    \label{alg:decode_task_assignment}
+    \begin{algorithmic}[1]
+        \Require Chromosome $x$
+        \Ensure Task-to-core assignment $A^T$
 
-            \State \Return $P$
-        \end{algorithmic}
-    \end{algorithm}
-    \begin{algorithm}[H]
-        \caption{Build Feasible Schedule from Assignment and Priority Order}
-        \label{alg:build_schedule}
-        \begin{algorithmic}[1]
-            \Require Core assignment $A$, priority order $P$
-            \Ensure Start times $S_i$ and finish times $F_i$
+        \For{each task $t \in T$}
+            \State $q_t \gets \mathrm{round}(a_t)$
+            \State $q_t \gets \max(0,\min(q_t,|E_t|-1))$
+            \Comment{Clamp to valid eligible-core index}
+            \State $A^T_t \gets E_t[q_t]$
+        \EndFor
 
-            \State $U \gets T$
-            \Comment{Unscheduled tasks}
-            \State $S \gets \emptyset$, $F \gets \emptyset$
-            \For{each core $c \in C$}
-                \State $a_c \gets 0$
-                \Comment{Earliest time core $c$ is available}
-            \EndFor
+        \State \Return $A^T$
+    \end{algorithmic}
+\end{algorithm}
 
-            \For{each task $i \in T$}
-                \State $\rho_i \gets$ position of task $i$ in $P$
-                \Comment{Lower rank means higher priority}
-            \EndFor
+\begin{algorithm}[H]
+    \caption{Decode Task Priority}
+    \label{alg:decode_task_priority}
+    \begin{algorithmic}[1]
+        \Require Chromosome $x$
+        \Ensure Task priority values $\Pi^T$
 
-            \While{$U \neq \emptyset$}
-                \State $R \gets \{i \in U : \mathrm{pred}(i) \subseteq \mathrm{keys}(F)\}$
-                \Comment{Tasks whose predecessors are already scheduled}
+        \For{each task $t \in T$}
+            \State $\Pi^T_t \gets \pi_t$
+            \Comment{Priority gene of task $t$}
+        \EndFor
 
-                \If{$R = \emptyset$}
-                    \State \textbf{error} ``No ready task exists''
-                    \Comment{Dependency graph is infeasible or cyclic}
-                \EndIf
+        \State \Return $\Pi^T$
+    \end{algorithmic}
+\end{algorithm}
 
-                \State $i \gets \arg\min_{j \in R} \rho_j$
-                \Comment{Schedule highest-priority ready tasks}
+\begin{algorithm}[H]
+    \caption{Derive Job Priority Order}
+    \label{alg:derive_job_priority_order}
+    \begin{algorithmic}[1]
+        \Require Task priority values $\Pi^T$
+        \Ensure Job priority order $P^J$
 
-                \State $c \gets A_i$
+        \State $L \gets [\ ]$
 
-                \If{$\mathrm{pred}(i) = \emptyset$}
-                    \State $f^{pred}_i \gets 0$
-                \Else
-                    \State $f^{pred}_i \gets \max_{h \in \mathrm{pred}(i)} F_h$
-                \EndIf
+        \For{each job $j \in J$}
+            \State $t \gets \tau(j)$
+            \State Append $(j,\Pi^T_t,r_j,\mathrm{index}(j))$ to $L$
+        \EndFor
 
-                \State $S_i \gets \max(a_c, f^{pred}_i, r_i)$
-                \State $F_i \gets S_i + d_i \cdot ets_c$
+        \State Sort $L$ by descending $\Pi^T_t$
+        \State Break ties by ascending release time $r_j$
+        \State Break remaining ties by original job index
+        \State $P^J \gets$ ordered job IDs from $L$
 
-                \State $a_c \gets F_i$
-                \State $U \gets U \setminus \{i\}$
-            \EndWhile
+        \State \Return $P^J$
+    \end{algorithmic}
+\end{algorithm}
 
-            \State \Return $(S,F)$
-        \end{algorithmic}
-    \end{algorithm}
-    \begin{algorithm}[H]
-        \caption{Memory Overflow Penalty}
-        \label{alg:memory_overflow}
-        \begin{algorithmic}[1]
-            \Require Core assignment $A$
-            \Ensure Core overflows $O^{core}$ and cluster overflows $O^{cluster}$
+\begin{algorithm}[H]
+    \caption{Build Schedule from Job Assignment and Job Priority Order}
+    \label{alg:build_schedule}
+    \begin{algorithmic}[1]
+        \Require Job-to-core assignment $A^J$, job priority order $P^J$
+        \Ensure Start times $S_j$ and finish times $F_j$
 
-            \For{each core $c \in C$}
-                \State $M^{core}_c \gets 0$
-            \EndFor
-            \For{each cluster $k \in K$}
-                \State $M^{cluster}_k \gets 0$
-            \EndFor
+        \For{each core $c \in C$}
+            \State $I_c \gets [\ ]$
+            \Comment{Scheduled intervals on core $c$}
+        \EndFor
 
-            \For{each task $i \in T$}
-                \State $c \gets A_i$
-                \State $k \gets \mathrm{cluster}(c)$
-                \State $M^{core}_c \gets M^{core}_c + m_i$
-                \State $M^{cluster}_k \gets M^{cluster}_k + m_i$
-            \EndFor
+        \State $S \gets \emptyset$, $F \gets \emptyset$
+        \State $A_{\mathrm{anchored}} \gets \emptyset$
 
-            \For{each core $c \in C$}
-                \State $O^{core}_c \gets \max(0, M^{core}_c - B^{core}_c)$
-            \EndFor
-
-            \For{each cluster $k \in K$}
-                \State $O^{cluster}_k \gets \max(0, M^{cluster}_k - B^{cluster}_k)$
-            \EndFor
-
-            \State \Return $(O^{core}, O^{cluster})$
-        \end{algorithmic}
-    \end{algorithm}
-    \begin{algorithm}[H]
-        \caption{Communication Cost}
-        \label{alg:communication_cost}
-        \begin{algorithmic}[1]
-            \Require Core assignment $A$, dependency set $D$
-            \Ensure Communication cost $Q$
-
-            \State $Q \gets 0$
-
-            \For{each dependency $(i,j) \in D$}
-                \State $c_i \gets A_i$
-                \State $c_j \gets A_j$
-
-                \If{an explicit communication penalty exists for $(c_i,c_j)$}
-                    \State $Q \gets Q + \mathrm{penalty}(c_i,c_j)$
-                \ElsIf
-                        {$c_i = c_j$}
-                    \State $Q \gets Q + w_{\mathrm{intra\_core}}$
-                \ElsIf
-                        {$\mathrm{cluster}(c_i) = \mathrm{cluster}(c_j)$}
-                    \State $Q \gets Q + w_{\mathrm{inter\_core}}$
-                \Else
-                    \State $Q \gets Q + w_{\mathrm{inter\_cluster}}$
+        \Statex
+        \If{strict chain-root start is enabled}
+            \For{each job $j \in J$}
+                \If{$j$ is a chain root}
+                    \State $c \gets A^J_j$
+                    \State $S_j \gets r_j$
+                    \State $F_j \gets S_j + p_j \alpha_c$
+                    \State Insert interval $(S_j,F_j,j)$ into $I_c$
+                    \State $A_{\mathrm{anchored}} \gets A_{\mathrm{anchored}} \cup \{j\}$
                 \EndIf
             \EndFor
+        \EndIf
 
-            \State \Return $Q$
-        \end{algorithmic}
-    \end{algorithm}
+        \Statex
+        \For{each job $j \in J$}
+            \State $\rho_j \gets$ position of $j$ in $P^J$
+            \Comment{Lower rank means higher priority}
+            \State $n_j \gets |\mathrm{pred}(j)|$
+            \Comment{Number of unscheduled predecessors}
+            \State $H_j \gets 0$
+            \Comment{Maximum predecessor finish time}
+        \EndFor
+
+        \State Initialize empty ready heap $R$
+
+        \For{each job $j \in J$}
+            \If{$n_j = 0$}
+                \State Push $(r_j,\rho_j,\mathrm{index}(j),j)$ into $R$
+            \EndIf
+        \EndFor
+
+        \State $V \gets \emptyset$
+        \Comment{Visited jobs}
+
+        \While{$R \neq \emptyset$}
+            \State Pop highest-priority ready job $j$ from $R$
+
+            \If{$j \in V$}
+                \State \textbf{continue}
+            \EndIf
+
+            \State $V \gets V \cup \{j\}$
+
+            \If{$j \notin A_{\mathrm{anchored}}$}
+                \State $c \gets A^J_j$
+                \State $e_j \gets \max(r_j,H_j)$
+                \State $S_j \gets \Call{FindEarliestGap}{I_c,e_j,p_j\alpha_c}$
+                \State $F_j \gets S_j + p_j\alpha_c$
+                \State Insert interval $(S_j,F_j,j)$ into $I_c$ in sorted order
+            \EndIf
+
+            \For{each successor $h \in \mathrm{succ}(j)$}
+                \State $H_h \gets \max(H_h,F_j)$
+                \State $n_h \gets n_h - 1$
+
+                \If{$n_h = 0$}
+                    \State Push $(\max(r_h,H_h),\rho_h,\mathrm{index}(h),h)$ into $R$
+                \EndIf
+            \EndFor
+        \EndWhile
+
+        \If{$|V| \neq |J|$}
+            \State \textbf{error} ``Cycle or unschedulable dependency graph''
+        \EndIf
+
+        \State \Return $(S,F)$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \caption{Find Earliest Gap on Core}
+    \label{alg:find_earliest_gap}
+    \begin{algorithmic}[1]
+        \Require Sorted interval list $I_c$, earliest start $e$, duration $p$
+        \Ensure Earliest feasible start time
+
+        \State $s \gets e$
+
+        \For{each interval $(u,v,\cdot) \in I_c$ in ascending order}
+            \If{$s+p \le u$}
+                \State \Return $s$
+            \EndIf
+
+            \If{$s < v$}
+                \State $s \gets v$
+            \EndIf
+        \EndFor
+
+        \State \Return $s$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \caption{Memory Overflow Penalty}
+    \label{alg:memory_overflow}
+    \begin{algorithmic}[1]
+        \Require Task-to-core assignment $A^T$
+        \Ensure Core overflows $O^{\mathrm{core}}$ and cluster overflows $O^{\mathrm{cluster}}$
+
+        \For{each core $c \in C$}
+            \State $M^{\mathrm{core}}_c \gets 0$
+        \EndFor
+
+        \For{each cluster $k \in K$}
+            \State $M^{\mathrm{cluster}}_k \gets 0$
+        \EndFor
+
+        \For{each task $t \in T$}
+            \State $c \gets A^T_t$
+            \State $k \gets \mathrm{cluster}(c)$
+            \State $M^{\mathrm{core}}_c \gets M^{\mathrm{core}}_c + m_t$
+            \State $M^{\mathrm{cluster}}_k \gets M^{\mathrm{cluster}}_k + m_t$
+        \EndFor
+
+        \For{each core $c \in C$}
+            \State $O^{\mathrm{core}}_c \gets \max(0,M^{\mathrm{core}}_c - B^{\mathrm{core}}_c)$
+        \EndFor
+
+        \For{each cluster $k \in K$}
+            \State $O^{\mathrm{cluster}}_k \gets \max(0,M^{\mathrm{cluster}}_k - B^{\mathrm{cluster}}_k)$
+        \EndFor
+
+        \State \Return $(O^{\mathrm{core}},O^{\mathrm{cluster}})$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \caption{Communication Cost}
+    \label{alg:communication_cost}
+    \begin{algorithmic}[1]
+        \Require Task-to-core assignment $A^T$, task dependency set $D_{\mathrm{task}}$
+        \Ensure Communication cost $Q$
+
+        \State $Q \gets 0$
+
+        \For{each task dependency $(t_1,t_2) \in D_{\mathrm{task}}$}
+            \State $c_1 \gets A^T_{t_1}$
+            \State $c_2 \gets A^T_{t_2}$
+
+            \If{an explicit communication penalty exists for $(c_1,c_2)$}
+                \State $Q \gets Q + q^{\mathrm{explicit}}_{c_1c_2}$
+            \ElsIf{$c_1 = c_2$}
+                \State $Q \gets Q + w_{\mathrm{intra}}$
+            \ElsIf{$\mathrm{cluster}(c_1) = \mathrm{cluster}(c_2)$}
+                \State $Q \gets Q + w_{\mathrm{intercore}}$
+            \Else
+                \State $Q \gets Q + w_{\mathrm{intercluster}}$
+            \EndIf
+        \EndFor
+
+        \State \Return $Q$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \caption{Precedence Violation}
+    \label{alg:precedence_violation}
+    \begin{algorithmic}[1]
+        \Require Start times $S$, finish times $F$, job dependency set $D_{\mathrm{job}}$
+        \Ensure Precedence violation $V_{\mathrm{prec}}$
+
+        \State $V_{\mathrm{prec}} \gets 0$
+
+        \For{each job dependency $(j,h) \in D_{\mathrm{job}}$}
+            \If{$S_h < F_j$}
+                \State $V_{\mathrm{prec}} \gets V_{\mathrm{prec}} + F_j - S_h$
+            \EndIf
+        \EndFor
+
+        \State \Return $V_{\mathrm{prec}}$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \caption{Terminal Deadline Violation}
+    \label{alg:terminal_deadline_violation}
+    \begin{algorithmic}[1]
+        \Require Finish times $F$
+        \Ensure Terminal deadline violation $V_{\mathrm{dead}}$
+
+        \State $V_{\mathrm{dead}} \gets 0$
+
+        \For{each terminal job $j$ with absolute deadline $d_j$}
+            \If{$F_j > d_j$}
+                \State $V_{\mathrm{dead}} \gets V_{\mathrm{dead}} + F_j - d_j$
+            \EndIf
+        \EndFor
+
+        \State \Return $V_{\mathrm{dead}}$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \caption{Same-Core Overlap Violation}
+    \label{alg:same_core_overlap_violation}
+    \begin{algorithmic}[1]
+        \Require Start times $S$, finish times $F$, job-to-core assignment $A^J$
+        \Ensure Same-core overlap violation $V_{\mathrm{overlap}}$
+
+        \For{each core $c \in C$}
+            \State $I_c \gets [\ ]$
+        \EndFor
+
+        \For{each job $j \in J$}
+            \State $c \gets A^J_j$
+            \State Append $(S_j,F_j,j)$ to $I_c$
+        \EndFor
+
+        \State $V_{\mathrm{overlap}} \gets 0$
+
+        \For{each core $c \in C$}
+            \State Sort $I_c$ by ascending start time, finish time, and job index
+            \State $f_{\mathrm{prev}} \gets \emptyset$
+
+            \For{each interval $(s,f,j) \in I_c$}
+                \If{$f_{\mathrm{prev}} \neq \emptyset$ and $s < f_{\mathrm{prev}}$}
+                    \State $V_{\mathrm{overlap}} \gets V_{\mathrm{overlap}} + f_{\mathrm{prev}} - s$
+                \EndIf
+
+                \If{$f_{\mathrm{prev}} = \emptyset$ or $f > f_{\mathrm{prev}}$}
+                    \State $f_{\mathrm{prev}} \gets f$
+                \EndIf
+            \EndFor
+        \EndFor
+
+        \State \Return $V_{\mathrm{overlap}}$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \caption{Jitter Violation}
+    \label{alg:jitter_violation}
+    \begin{algorithmic}[1]
+        \Require Start times $S$, maximum allowed jitter $\Delta$
+        \Ensure Jitter violation $V_{\mathrm{jitter}}$
+
+        \If{$\Delta$ is not defined or $\Delta \le 0$}
+            \State \Return $0$
+        \EndIf
+
+        \State $V_{\mathrm{jitter}} \gets 0$
+
+        \For{each chain-root job $j \in J$}
+            \State $s^{\max}_j \gets r_j + \Delta$
+
+            \If{$S_j > s^{\max}_j$}
+                \State $V_{\mathrm{jitter}} \gets V_{\mathrm{jitter}} + S_j - s^{\max}_j$
+            \EndIf
+        \EndFor
+
+        \State \Return $V_{\mathrm{jitter}}$
+    \end{algorithmic}
+\end{algorithm}
 
 \end{document}
