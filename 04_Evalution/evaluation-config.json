@@ -18,7 +18,7 @@
     "CBC",
     "CPSAT"
   ],
-  "timeout_seconds": 600,
+  "timeout_seconds": 1000,
   "generated_tasksets_dir": "output/generated_tasksets",
   "solver_outputs_dir": "output/solutions",
   "seed": 12345,
@@ -47,6 +47,11 @@
       "num_tasks": 200,
       "count": 50,
       "filename_prefix": "taskset_200"
+    },
+    {
+      "num_tasks": 500,
+      "count": 20,
+      "filename_prefix": "taskset_500"
     }
   ]
 }
