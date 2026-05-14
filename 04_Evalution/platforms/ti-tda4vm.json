@@ -1,0 +1,211 @@
+{
+  "config": {
+    "generateComms": true,
+    "commsPenaltyWeight": {
+      "intraCoreWeight": 0,
+      "interCoreWeight": 8,
+      "interClusterWeight": 15
+    },
+    "memoryPenaltyScale": {
+      "coreOverflowScale": 1,
+      "clusterOverflowScale": 2
+    },
+    "maxChainJitter": -1
+  },
+  "platform": {
+    "name": "ti_tda4vm_adjusted",
+    "numCores": 11,
+    "numClusters": 5,
+    "timeUnit": "us",
+    "clusters": [
+      {
+        "name": "cortex_a72_cluster",
+        "id": "mpu_cluster",
+        "type": "application",
+        "numCores": 2,
+        "count": 1,
+        "notes": "Dual 64-bit Arm Cortex-A72 microprocessor subsystem",
+        "cores": [
+          {
+            "name": "arm_cortex_a72",
+            "id": "a72_core",
+            "frequencyGhz": 2.0,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 1024,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 2,
+            "notes": "Abstracts dedicated L2 cache budget"
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L3",
+            "sizeKB": 8192,
+            "notes": "8MB MSMC Shared SRAM in Main domain"
+          }
+        ]
+      },
+      {
+        "name": "mcu_island_r5f_cluster",
+        "id": "mcu_island",
+        "type": "safety",
+        "numCores": 2,
+        "count": 1,
+        "notes": "Two Arm Cortex-R5F MCUs in isolated MCU subsystem",
+        "cores": [
+          {
+            "name": "arm_cortex_r5f_safety",
+            "id": "r5f_safety_core",
+            "frequencyGhz": 1.0,
+            "executionDomain": "safety",
+            "wcetScale": 1.1,
+            "localMemoryKB": 512,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "Budgeted to handle safety tasks"
+          },
+          {
+            "name": "arm_cortex_r5f_security",
+            "id": "r5f_sec_core",
+            "frequencyGhz": 1.0,
+            "executionDomain": "security",
+            "wcetScale": 1.1,
+            "localMemoryKB": 512,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "Budgeted to handle HSM/crypto tasks"
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L3",
+            "sizeKB": 1024,
+            "notes": "1MB on-chip SRAM in MCU domain"
+          }
+        ]
+      },
+      {
+        "name": "general_compute_r5f_cluster",
+        "id": "main_r5f",
+        "type": "real_time",
+        "numCores": 4,
+        "count": 1,
+        "notes": "Four Arm Cortex-R5F MCUs in general compute partition",
+        "cores": [
+          {
+            "name": "arm_cortex_r5f_sensor",
+            "id": "r5f_sensor_core",
+            "frequencyGhz": 1.0,
+            "executionDomain": "sensor",
+            "wcetScale": 1.1,
+            "localMemoryKB": 1024,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 2,
+            "notes": "Mapped to handle radar/lidar/imu inputs"
+          },
+          {
+            "name": "arm_cortex_r5f_comms",
+            "id": "r5f_comms_core",
+            "frequencyGhz": 1.0,
+            "executionDomain": "automotive_comms",
+            "wcetScale": 1.1,
+            "localMemoryKB": 512,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 2,
+            "notes": "Mapped to handle CAN-FD, PCIe, Ethernet"
+          }
+        ],
+        "memory": [
+          {
+            "type": "sram",
+            "level": "L3",
+            "sizeKB": 512,
+            "notes": "512KB on-chip SRAM in MAIN domain"
+          }
+        ]
+      },
+      {
+        "name": "c7x_dsp_cluster",
+        "id": "c7x_cluster",
+        "type": "dsp_ai",
+        "numCores": 1,
+        "count": 1,
+        "notes": "C7x floating point, vector DSP with Deep-learning MMA",
+        "cores": [
+          {
+            "name": "c7x_dsp",
+            "id": "c7x_core",
+            "frequencyGhz": 1.0,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.8,
+            "localMemoryKB": 4096,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "Allocated large memory budget to handle up to 4MB vision tasks"
+          }
+        ],
+        "memory": []
+      },
+      {
+        "name": "c66x_dsp_cluster",
+        "id": "c66x_cluster",
+        "type": "dsp",
+        "numCores": 2,
+        "count": 1,
+        "notes": "Two C66x floating point DSP",
+        "cores": [
+          {
+            "name": "c66x_dsp",
+            "id": "c66x_core",
+            "frequencyGhz": 1.35,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.9,
+            "localMemoryKB": 2048,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 2,
+            "notes": "Maps legacy vision algorithms"
+          }
+        ],
+        "memory": []
+      }
+    ],
+    "memoryNodes": [
+      {
+        "id": "mn_00",
+        "name": "main_dram",
+        "type": "dram",
+        "scope": "system",
+        "accessibleBy": [],
+        "technology": "LPDDR4",
+        "capacityGB": 8,
+        "coherent": false,
+        "contentionDomain": "emif",
+        "notes": "Up to 8GB 32-bit LPDDR4 with inline ECC (up to 4266MT/s)"
+      }
+    ]
+  }
+}

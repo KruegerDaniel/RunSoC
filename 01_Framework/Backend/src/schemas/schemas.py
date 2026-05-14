@@ -1,6 +1,6 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Task(BaseModel):
@@ -15,7 +15,57 @@ class Task(BaseModel):
     required_domain: str = "general_purpose"
     notes: str = ""
 
+    @model_validator(mode="after")
+    def validate_period(self):
+        if self.task_type == "periodic" and self.period <= 0:
+            raise ValueError(f"Periodic task {self.id} must have a positive period")
+        if self.task_type == "event" and self.period != 0:
+            raise ValueError(f"Event task {self.id} must have a period of 0")
+        return self
+
 class Dependency(BaseModel):
+    predecessor: str
+    successor: str
+
+class TaskChain(BaseModel):
+    id: str
+    root_task_id: str
+    task_ids: List[str]
+
+    period: int
+    release_offset: int = 0
+    deadline: Optional[int] = None
+    instances: Optional[int] = None
+
+    @model_validator(mode="after")
+    def validate_chain(self):
+        if self.period <= 0:
+            raise ValueError(f"Task chain {self.id} must have a period > 0")
+        if self.deadline is not None and self.deadline <= 0:
+            raise ValueError(f"Task chain {self.id} must have a deadline > 0")
+        return self
+
+class Job(BaseModel):
+    id: str
+    task_id: str
+    chain_id: str | None = None
+    instance_index: int | None = None
+
+    name: str
+    task_type: str
+
+    release_time: int
+    absolute_deadline: int | None = None
+
+    is_chain_root: bool = False
+
+    duration: float
+    memory: int
+    eligible_cores: List[str] = Field(default_factory=list)
+    required_domain: str = "general_purpose"
+    notes: str = ""
+
+class JobDependency(BaseModel):
     predecessor: str
     successor: str
 
@@ -25,7 +75,6 @@ class CommunicationPath(BaseModel):
     target: str # core
     penalty: int = 0
     notes: str = ""
-
 
 class Core(BaseModel):
     id: str
@@ -55,14 +104,32 @@ class MemoryNode(BaseModel):
     capacity: int
     notes: str = ""
 
+class EvaluationMetadata(BaseModel):
+    taskset_id: str | None = None
+    platform_name: str | None = None
+    platform_key: str | None = None
+    source_file: str | None = None
+    seed: int | None = None
 
 class ProblemInstance(BaseModel):
+    # Runnable templates
     tasks: List[Task] = Field(default_factory=list)
     dependencies: List[Dependency] = Field(default_factory=list)
+    task_chains: List[TaskChain] = Field(default_factory=list)
+
+    # Concrete schedulable instances
+    jobs: List[Job] = Field(default_factory=list)
+    job_dependencies: List[JobDependency] = Field(default_factory=list)
+
     communication_paths: List[CommunicationPath] = Field(default_factory=list)
+
     clusters: List[Cluster] = Field(default_factory=list)
     memory_nodes: List[MemoryNode] = Field(default_factory=list)
     cores: List[Core] = Field(default_factory=list)
+
+    horizon: int
+
+    max_chain_jitter: int | None = 0
 
     memory_penalty_scale: dict = Field(
         default_factory=lambda: {
@@ -75,8 +142,8 @@ class ProblemInstance(BaseModel):
         default_factory=lambda: {
             "intra_core_weight": 0,
             "inter_core_weight": 8,
-            "inter_cluster_weight": 15,
-            "inter_app_weight": 100,  # ignored since task set will not use cross-domain
+            "inter_cluster_weight": 15
         }
     )
 
+    evaluation: EvaluationMetadata = Field(default_factory=EvaluationMetadata)

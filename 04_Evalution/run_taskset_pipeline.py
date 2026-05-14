@@ -1,13 +1,27 @@
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+FRAMEWORK_BACKEND_DIR = (SCRIPT_DIR / "../01_Framework/Backend/experiments").resolve()
+
+if str(FRAMEWORK_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(FRAMEWORK_BACKEND_DIR))
+
+import taskset_generator
+import taskset_runner
+from utils.logger import configure_logging
 
 
 DEFAULT_CONFIG = {
-    "soc_template_path": "./default-soc.json",
+    "platforms": [
+        {
+            "name": "default",
+            "soc_template_path": "./default-soc.json",
+        }
+    ],
     "solvers": ["CPSAT", "CBC", "GA"],
     "timeout_seconds": 300,
     "generated_tasksets_dir": "output/generated_tasksets",
@@ -22,205 +36,178 @@ DEFAULT_CONFIG = {
     ],
 }
 
+configure_logging(log_dir=".logs", log_file="evaluation.log", level="INFO")
 
-def load_config(path: Path | None) -> dict[str, Any]:
+
+def load_config(path: Optional[Path]) -> dict[str, Any]:
     if path is None:
         return DEFAULT_CONFIG.copy()
 
     if not path.is_file():
         raise FileNotFoundError(f"Config file does not exist: {path}")
 
-    if path.suffix.lower() != ".json":
-        raise ValueError(
-            f"Unsupported config file type: {path.suffix}. "
-            "Use .json, for example ./evaluation-config.json."
-        )
-
     with path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def validate_config(config: dict[str, Any]) -> None:
-    required_top_level = [
-        "soc_template_path",
-        "solvers",
-        "timeout_seconds",
-        "generated_tasksets_dir",
-        "solver_outputs_dir",
-        "tasksets",
-    ]
+    if "platforms" not in config:
+        raise ValueError("Config must contain a 'platforms' list.")
 
-    for key in required_top_level:
-        if key not in config:
-            raise ValueError(f"Missing required config key: {key}")
+    if not isinstance(config["platforms"], list) or not config["platforms"]:
+        raise ValueError("'platforms' must be a non-empty list.")
 
-    if "seed" in config and config["seed"] is not None:
-        try:
-            int(config["seed"])
-        except ValueError:
-            raise ValueError("seed must be an integer or null if provided.")
+    for platform in config["platforms"]:
+        if "name" not in platform:
+            raise ValueError("Each platform must define 'name'.")
+        if "soc_template_path" not in platform:
+            raise ValueError(f"Platform {platform.get('name')} is missing 'soc_template_path'.")
 
-    if not isinstance(config["solvers"], list) or not config["solvers"]:
-        raise ValueError("solvers must be a non-empty list.")
-
-    if int(config["timeout_seconds"]) < 1:
-        raise ValueError("timeout_seconds must be >= 1.")
-
-    if not isinstance(config["tasksets"], list) or not config["tasksets"]:
-        raise ValueError("tasksets must be a non-empty list.")
-
-    for index, taskset_config in enumerate(config["tasksets"]):
-        for key in ["num_tasks", "count", "filename_prefix"]:
-            if key not in taskset_config:
-                raise ValueError(f"Missing key tasksets[{index}]['{key}'].")
-
-        if int(taskset_config["num_tasks"]) < 1:
-            raise ValueError(f"tasksets[{index}]['num_tasks'] must be >= 1.")
-
-        if int(taskset_config["count"]) < 1:
-            raise ValueError(f"tasksets[{index}]['count'] must be >= 1.")
-
-        if not str(taskset_config["filename_prefix"]).strip():
-            raise ValueError(
-                f"tasksets[{index}]['filename_prefix'] must not be empty."
+        soc_template_path = Path(platform["soc_template_path"])
+        if not soc_template_path.is_file():
+            raise FileNotFoundError(
+                f"SoC template for platform '{platform['name']}' does not exist: "
+                f"{soc_template_path}"
             )
 
+    if "tasksets" not in config:
+        raise ValueError("Config must contain a 'tasksets' list.")
 
-def run_command(command: list[str], cwd: Path) -> None:
-    print()
-    print("Running:")
-    print(" ".join(command))
-    print()
-
-    completed = subprocess.run(command, cwd=cwd)
-
-    if completed.returncode != 0:
-        raise RuntimeError(
-            f"Command failed with exit code {completed.returncode}: "
-            f"{' '.join(command)}"
-        )
-
-
-def generate_tasksets(
-    *,
-    script_dir: Path,
-    generator_script: Path,
-    config: dict[str, Any],
-) -> None:
-    generated_tasksets_dir = Path(config["generated_tasksets_dir"]).resolve()
-    soc_template_path = Path(config["soc_template_path"]).resolve()
-    base_seed = config.get("seed", None)
-
-    generated_tasksets_dir.mkdir(parents=True, exist_ok=True)
+    if not isinstance(config["tasksets"], list) or not config["tasksets"]:
+        raise ValueError("'tasksets' must be a non-empty list.")
 
     for taskset_config in config["tasksets"]:
         num_tasks = int(taskset_config["num_tasks"])
         count = int(taskset_config["count"])
-        filename_prefix = str(taskset_config["filename_prefix"])
 
-        for i in range(1, count + 1):
-            filename = f"{filename_prefix}_{i:03d}.json"
+        if num_tasks < 1:
+            raise ValueError(f"num_tasks must be positive, got {num_tasks}.")
 
-            command = [
-                sys.executable,
-                str(generator_script),
-                "--filename",
-                filename,
-                "--output-dir",
-                str(generated_tasksets_dir),
-                "--soc-template",
-                str(soc_template_path),
-                "--num_tasks",
-                str(num_tasks),
-            ]
+        if count < 1:
+            raise ValueError(f"count must be positive, got {count}.")
 
-            if base_seed is not None:
-                generated_seed = int(base_seed) + i + (num_tasks * 10_000)
-                command.extend(["--seed", str(generated_seed)])
+        if "filename_prefix" not in taskset_config:
+            raise ValueError("Each taskset entry must define 'filename_prefix'.")
 
-            run_command(command, cwd=script_dir)
+    if "solvers" not in config or not config["solvers"]:
+        raise ValueError("Config must contain a non-empty 'solvers' list.")
+
+    timeout_seconds = int(config.get("timeout_seconds", 300))
+    if timeout_seconds < 1:
+        raise ValueError(f"timeout_seconds must be positive, got {timeout_seconds}.")
 
 
-def run_solvers(
-    *,
-    script_dir: Path,
-    runner_script: Path,
-    config: dict[str, Any],
-) -> None:
+def sanitize_platform_name(name: str) -> str:
+    cleaned = name.strip().lower()
+    cleaned = cleaned.replace("-", "_")
+    cleaned = cleaned.replace(" ", "_")
+    cleaned = "".join(ch for ch in cleaned if ch.isalnum() or ch == "_")
+    cleaned = "_".join(part for part in cleaned.split("_") if part)
+    return cleaned
+
+
+def make_taskset_filename(
+    platform_name: str,
+    filename_prefix: str,
+    index: int,
+) -> str:
+    platform_key = sanitize_platform_name(platform_name)
+
+    if not filename_prefix.startswith("taskset_"):
+        raise ValueError(
+            f"filename_prefix should start with 'taskset_', got: {filename_prefix}"
+        )
+
+    suffix = filename_prefix[len("taskset_"):]
+    return f"taskset_{platform_key}_{suffix}_{index:03d}.json"
+
+
+def make_generated_seed(
+    base_seed: Optional[int],
+    platform_index: int,
+    num_tasks: int,
+    taskset_index: int,
+) -> Optional[int]:
+    if base_seed is None:
+        return None
+
+    return int(base_seed) + (platform_index * 1_000_000) + (num_tasks * 10_000) + taskset_index
+
+
+def generate_tasksets(config: dict[str, Any]) -> None:
+    generated_tasksets_dir = Path(config["generated_tasksets_dir"]).resolve()
+    base_seed = config.get("seed", None)
+
+    generated_tasksets_dir.mkdir(parents=True, exist_ok=True)
+
+    for platform_index, platform in enumerate(config["platforms"], start=1):
+        platform_name = str(platform["name"])
+        soc_template_path = Path(platform["soc_template_path"]).resolve()
+
+        print(f"\n--- Generating tasksets for platform: {platform_name} ---")
+
+        for taskset_config in config["tasksets"]:
+            num_tasks = int(taskset_config["num_tasks"])
+            count = int(taskset_config["count"])
+            filename_prefix = str(taskset_config["filename_prefix"])
+
+            for i in range(1, count + 1):
+                filename = make_taskset_filename(
+                    platform_name=platform_name,
+                    filename_prefix=filename_prefix,
+                    index=i,
+                )
+
+                generated_seed = make_generated_seed(
+                    base_seed=base_seed,
+                    platform_index=platform_index,
+                    num_tasks=num_tasks,
+                    taskset_index=i,
+                )
+
+                print(f"Calling generator: {filename}")
+
+                taskset_generator.main(
+                    filename=filename,
+                    output_dir=generated_tasksets_dir,
+                    soc_template=soc_template_path,
+                    num_tasks=num_tasks,
+                    seed=generated_seed,
+                    platform_key=sanitize_platform_name(platform_name),
+                )
+
+
+def run_solvers(config: dict[str, Any]) -> None:
     generated_tasksets_dir = Path(config["generated_tasksets_dir"]).resolve()
     solver_outputs_dir = Path(config["solver_outputs_dir"]).resolve()
 
-    solver_outputs_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\nCalling solver runner for input: {generated_tasksets_dir}")
 
-    command = [
-        sys.executable,
-        str(runner_script),
-        "--input-dir",
-        str(generated_tasksets_dir),
-        "--output-dir",
-        str(solver_outputs_dir),
-        "--solvers",
-        *config["solvers"],
-        "--timeout-seconds",
-        str(config["timeout_seconds"]),
-    ]
-
-    run_command(command, cwd=script_dir)
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate tasksets and run taskset_runner over them."
+    taskset_runner.main(
+        input_dir=generated_tasksets_dir,
+        output_dir=solver_outputs_dir,
+        solvers=config["solvers"],
+        timeout_seconds=int(config["timeout_seconds"]),
     )
 
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "config",
         nargs="?",
         type=Path,
         default=Path("./evaluation-config.json"),
-        help="Path to evaluation config JSON. Default: ./evaluation-config.json",
     )
-
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-
-    script_dir = Path("../01_Framework/Backend/experiments").resolve()
-    generator_script = script_dir / "taskset_generator.py"
-    runner_script = script_dir / "taskset_runner.py"
-
-    if not generator_script.is_file():
-        raise FileNotFoundError(f"Could not find: {generator_script}")
-
-    if not runner_script.is_file():
-        raise FileNotFoundError(f"Could not find: {runner_script}")
+    args = parser.parse_args()
 
     config = load_config(args.config)
     validate_config(config)
 
-    print("Evaluation config loaded.")
-    print(f"Config file:             {args.config.resolve()}")
-    print(f"Generated tasksets dir:  {Path(config['generated_tasksets_dir']).resolve()}")
-    print(f"Solver outputs dir:      {Path(config['solver_outputs_dir']).resolve()}")
-    print(f"Solvers:                 {', '.join(config['solvers'])}")
-    print(f"Seed:                    {config.get('seed', None)}")
-
-    generate_tasksets(
-        script_dir=script_dir,
-        generator_script=generator_script,
-        config=config,
-    )
-
-    run_solvers(
-        script_dir=script_dir,
-        runner_script=runner_script,
-        config=config,
-    )
-
-    print()
-    print("Evaluation complete.")
+    print("--- Starting Pipeline ---")
+    generate_tasksets(config)
+    run_solvers(config)
+    print("\nEvaluation complete.")
 
 
 if __name__ == "__main__":

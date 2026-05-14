@@ -1,0 +1,238 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+
+\begin{document}
+    \begin{algorithm}[H]
+        \caption{Genetic Algorithm Scheduler}
+        \label{alg:ga_scheduler}
+        \begin{algorithmic}[1]
+            \Require Task set $T$, core set $C$, cluster set $K$, dependency set $D$
+            \Require Eligible cores $E_i \subseteq C$ for each task $i \in T$
+            \Require Task duration $d_i$, memory demand $m_i$, minimum start time $r_i$
+            \Require Core memory budget $B^{core}_c$, core WCET scale $ets_c$
+            \Require Cluster memory budget $B^{cluster}_k$
+            \Require Communication penalties and memory penalty weights
+            \Ensure Best decoded schedule found by the genetic algorithm
+
+            \State $N \gets |T|$
+            \State Define chromosome length $2N$
+            \Comment{(First $N$ genes encode core assignment, last $N$ genes encode task priority)}
+
+            \Statex
+            \State Define gene space:
+            \For{each task $i \in T$}
+                \State gene $x_i \in \{0, \ldots, |E_i|-1\}$
+                \Comment{Index into eligible core list}
+            \EndFor
+            \For{each task $i \in T$}
+                \State gene $p_i \in [0,1)$
+                \Comment{Priority value}
+            \EndFor
+
+            \Statex
+            \State Initialize GA population
+            \While{termination criterion not satisfied}
+                \For{each chromosome $x$ in population}
+                    \State $F(x) \gets \Call{Fitness}{x}$
+                \EndFor
+                \State Create next generation using GA selection and variation operators
+            \EndWhile
+
+            \State $x^\star \gets$ best chromosome found
+            \State \Return $\Call{DecodeChromosome}{x^\star}$
+        \end{algorithmic}
+    \end{algorithm}
+    \begin{algorithm}[H]
+        \caption{Fitness Evaluation}
+        \label{alg:fitness}
+        \begin{algorithmic}[1]
+            \Require Chromosome $x$
+            \Ensure Fitness value $\phi(x)$
+
+            \State $(A, P, S, F, C_{\max}, O^{core}, O^{cluster}, Q, J) \gets \Call{DecodeChromosome}{x}$
+
+            \Statex
+            \State $\phi(x) \gets \dfrac{1}{1 + J}$
+
+            \State \Return $\phi(x)$
+        \end{algorithmic}
+    \end{algorithm}
+    \begin{algorithm}[H]
+        \caption{Decode Chromosome}
+        \label{alg:decode_chromosome}
+        \begin{algorithmic}[1]
+            \Require Chromosome $x$ of length $2N$
+            \Ensure Assignment, priority order, start times, finish times, max span, core overflow, cluster overflow, and total cost
+
+            \State $A \gets \Call{DecodeAssignment}{x}$
+            \State $P \gets \Call{DecodePriorityOrder}{x}$
+            \State $(S, F) \gets \Call{BuildSchedule}{A, P}$
+
+
+            \State $C_{\max} \gets \max_{i \in T} F_i$
+
+            \State $(O^{core}, O^{cluster}) \gets \Call{MemoryOverflow}{A}$
+            \State $Q \gets \Call{CommunicationCost}{A}$
+
+            \Statex
+            \State $J \gets C_{\max}$
+            \State $J \gets J + \lambda_{core} \sum_{c \in C} O^{core}_c$
+            \State $J \gets J + \lambda_{cluster} \sum_{k \in K} O^{cluster}_k$
+            \State $J \gets J + Q$
+
+            \State \Return $(A, P, S, F, C_{\max}, O^{core}, O^{cluster}, Q, J)$
+        \end{algorithmic}
+    \end{algorithm}
+    \begin{algorithm}[H]
+        \caption{Decode Assignment}
+        \label{alg:decode_assignment}
+        \begin{algorithmic}[1]
+            \Require Chromosome $x$
+            \Ensure Core assignment $A_i$ for each task $i \in T$
+
+            \For{each task $i \in T$}
+                \State $q_i \gets \mathrm{round}(x_i)$
+                \State $q_i \gets \max(0, \min(q_i, |E_i|-1))$
+                \Comment{Clamp to valid eligible-core index}
+                \State $A_i \gets E_i[q_i]$
+            \EndFor
+
+            \State \Return $A$
+        \end{algorithmic}
+    \end{algorithm}
+    \begin{algorithm}[H]
+        \caption{Decode Priority Order}
+        \label{alg:decode_priority}
+        \begin{algorithmic}[1]
+            \Require Chromosome $x$
+            \Ensure Priority order $P$
+
+            \State $L \gets [\ ]$
+            \For{each task $i \in T$}
+                \State $p_i \gets x_{N+i}$
+                \Comment{Priority gene for task $i$}
+                \State Append $(i, p_i)$ to $L$
+            \EndFor
+
+            \State Sort $L$ by descending $p_i$
+            \State Break ties by original task index
+            \State $P \gets$ ordered task IDs from $L$
+
+            \State \Return $P$
+        \end{algorithmic}
+    \end{algorithm}
+    \begin{algorithm}[H]
+        \caption{Build Feasible Schedule from Assignment and Priority Order}
+        \label{alg:build_schedule}
+        \begin{algorithmic}[1]
+            \Require Core assignment $A$, priority order $P$
+            \Ensure Start times $S_i$ and finish times $F_i$
+
+            \State $U \gets T$
+            \Comment{Unscheduled tasks}
+            \State $S \gets \emptyset$, $F \gets \emptyset$
+            \For{each core $c \in C$}
+                \State $a_c \gets 0$
+                \Comment{Earliest time core $c$ is available}
+            \EndFor
+
+            \For{each task $i \in T$}
+                \State $\rho_i \gets$ position of task $i$ in $P$
+                \Comment{Lower rank means higher priority}
+            \EndFor
+
+            \While{$U \neq \emptyset$}
+                \State $R \gets \{i \in U : \mathrm{pred}(i) \subseteq \mathrm{keys}(F)\}$
+                \Comment{Tasks whose predecessors are already scheduled}
+
+                \If{$R = \emptyset$}
+                    \State \textbf{error} ``No ready task exists''
+                    \Comment{Dependency graph is infeasible or cyclic}
+                \EndIf
+
+                \State $i \gets \arg\min_{j \in R} \rho_j$
+                \Comment{Schedule highest-priority ready tasks}
+
+                \State $c \gets A_i$
+
+                \If{$\mathrm{pred}(i) = \emptyset$}
+                    \State $f^{pred}_i \gets 0$
+                \Else
+                    \State $f^{pred}_i \gets \max_{h \in \mathrm{pred}(i)} F_h$
+                \EndIf
+
+                \State $S_i \gets \max(a_c, f^{pred}_i, r_i)$
+                \State $F_i \gets S_i + d_i \cdot ets_c$
+
+                \State $a_c \gets F_i$
+                \State $U \gets U \setminus \{i\}$
+            \EndWhile
+
+            \State \Return $(S,F)$
+        \end{algorithmic}
+    \end{algorithm}
+    \begin{algorithm}[H]
+        \caption{Memory Overflow Penalty}
+        \label{alg:memory_overflow}
+        \begin{algorithmic}[1]
+            \Require Core assignment $A$
+            \Ensure Core overflows $O^{core}$ and cluster overflows $O^{cluster}$
+
+            \For{each core $c \in C$}
+                \State $M^{core}_c \gets 0$
+            \EndFor
+            \For{each cluster $k \in K$}
+                \State $M^{cluster}_k \gets 0$
+            \EndFor
+
+            \For{each task $i \in T$}
+                \State $c \gets A_i$
+                \State $k \gets \mathrm{cluster}(c)$
+                \State $M^{core}_c \gets M^{core}_c + m_i$
+                \State $M^{cluster}_k \gets M^{cluster}_k + m_i$
+            \EndFor
+
+            \For{each core $c \in C$}
+                \State $O^{core}_c \gets \max(0, M^{core}_c - B^{core}_c)$
+            \EndFor
+
+            \For{each cluster $k \in K$}
+                \State $O^{cluster}_k \gets \max(0, M^{cluster}_k - B^{cluster}_k)$
+            \EndFor
+
+            \State \Return $(O^{core}, O^{cluster})$
+        \end{algorithmic}
+    \end{algorithm}
+    \begin{algorithm}[H]
+        \caption{Communication Cost}
+        \label{alg:communication_cost}
+        \begin{algorithmic}[1]
+            \Require Core assignment $A$, dependency set $D$
+            \Ensure Communication cost $Q$
+
+            \State $Q \gets 0$
+
+            \For{each dependency $(i,j) \in D$}
+                \State $c_i \gets A_i$
+                \State $c_j \gets A_j$
+
+                \If{an explicit communication penalty exists for $(c_i,c_j)$}
+                    \State $Q \gets Q + \mathrm{penalty}(c_i,c_j)$
+                \ElsIf
+                        {$c_i = c_j$}
+                    \State $Q \gets Q + w_{\mathrm{intra\_core}}$
+                \ElsIf
+                        {$\mathrm{cluster}(c_i) = \mathrm{cluster}(c_j)$}
+                    \State $Q \gets Q + w_{\mathrm{inter\_core}}$
+                \Else
+                    \State $Q \gets Q + w_{\mathrm{inter\_cluster}}$
+                \EndIf
+            \EndFor
+
+            \State \Return $Q$
+        \end{algorithmic}
+    \end{algorithm}
+
+\end{document}

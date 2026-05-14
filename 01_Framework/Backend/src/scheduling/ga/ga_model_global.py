@@ -14,23 +14,8 @@ logger = logging.getLogger(__name__)
 
 class GaModel:
     def __init__(self, problem_instance: ProblemInstance, time_limit_seconds: int = 100):
-        self.start_time = None
-        self.max_generations = None
-
         self.problem_instance = problem_instance
         self.time_limit_seconds = time_limit_seconds
-
-        self.jitter = getattr(self.problem_instance, "max_chain_jitter", 0)
-        self.is_strict_start = (self.jitter == 0)
-
-        # -----------------------------
-        # Tasks & Jobs
-        # -----------------------------
-        self.tasks = {t.id: t for t in problem_instance.tasks}
-        self.task_ids = [t.id for t in problem_instance.tasks]
-        self.task_index: Dict[str, int] = {
-            task_id: i for i, task_id in enumerate(self.task_ids)
-        }
 
         self.jobs = {j.id: j for j in problem_instance.jobs}
         self.job_ids = [j.id for j in problem_instance.jobs]
@@ -38,26 +23,16 @@ class GaModel:
             job_id: i for i, job_id in enumerate(self.job_ids)
         }
 
-        # -----------------------------
-        # Hardware
-        # -----------------------------
         self.cores = {c.id: c for c in problem_instance.cores}
         self.core_ids = [c.id for c in problem_instance.cores]
 
         self.clusters = {cl.id: cl for cl in problem_instance.clusters}
         self.cluster_ids = [cl.id for cl in problem_instance.clusters]
-        self.core_to_cluster = {c.id: c.cluster_id for c in problem_instance.cores}
 
-        # -----------------------------
-        # Eligible Cores (Task Level)
-        # -----------------------------
-        self.eligible_core_list_task: List[List[str]] = [
-            self.tasks[task_id].eligible_cores[:] for task_id in self.task_ids
+        self.eligible_core_list: List[List[str]] = [
+            self.jobs[job_id].eligible_cores[:] for job_id in self.job_ids
         ]
 
-        # -----------------------------
-        # Dependencies (Job Level for Scheduler)
-        # -----------------------------
         self.predecessors: Dict[str, List[str]] = defaultdict(list)
         self.successors: Dict[str, List[str]] = defaultdict(list)
 
@@ -78,6 +53,9 @@ class GaModel:
             for job_id in terminal_jobs
         }
 
+        self.job_memory = {job.id: job.memory for job in problem_instance.jobs}
+        self.core_to_cluster = {c.id: c.cluster_id for c in problem_instance.cores}
+
         self.duration_cache = {}
         for job in problem_instance.jobs:
             self.duration_cache[job.id] = {}
@@ -85,24 +63,33 @@ class GaModel:
                 wcet_scale = getattr(core, "wcet_scale", 1.0) or 1.0
                 self.duration_cache[job.id][core.id] = float(job.duration) * float(wcet_scale)
 
-        # -----------------------------
-        # Gene Space (Task Level Partitioning)
-        # -----------------------------
-        # Gene structure: First T genes for core choice, Last T genes for priority
-        self.num_genes = 2 * len(self.tasks)
+        self.num_genes = 2 * len(self.jobs)
+
         self.gene_space = []
 
-        # First T genes: assignment choice index (per task).
-        for eligible in self.eligible_core_list_task:
+        # First J genes: assignment choice index.
+        for eligible in self.eligible_core_list:
             self.gene_space.append(list(range(len(eligible))))
 
-        # Last T genes: priority value (per task).
-        for _ in self.task_ids:
+        # Last J genes: priority value.
+        for _ in self.job_ids:
             self.gene_space.append({"low": 0.0, "high": 1.0})
 
     def solve(self, ga_properties):
-        self.start_time = time.time()
-        self.max_generations = ga_properties.get("max_generations", 500)
+        start_time = time.time()
+
+        def on_generation(ga_instance):
+            elapsed = time.time() - start_time
+
+            if ga_instance.generations_completed % 100 == 0:
+                logger.debug(
+                    "Generation %d | time elapsed: %.2f",
+                    ga_instance.generations_completed,
+                    elapsed,
+                )
+
+            if elapsed >= self.time_limit_seconds:
+                return "stop"
 
         ga = pygad.GA(
             **ga_properties,
@@ -110,7 +97,7 @@ class GaModel:
             gene_space=self.gene_space,
             gene_type=self._gene_types(),
             fitness_func=self.fitness_func,
-            on_generation=self.on_generation,
+            on_generation=on_generation,
             random_mutation_max_val=1.0,
             random_mutation_min_val=0.0,
         )
@@ -128,25 +115,16 @@ class GaModel:
         return decoded
 
     def decode_solution(self, solution, current_generation=0):
-        # 1. Decode Task-Level Traits
-        task_assignment = self._decode_task_assignment(solution)
-        task_priority = self._decode_task_priority(solution)
+        job_assignment = self._decode_assignment(solution)
+        priority_order = self._decode_priority_order(solution)
 
-        # 2. Inherit Traits to Jobs
-        job_assignment = {
-            job_id: task_assignment[self.jobs[job_id].task_id]
-            for job_id in self.job_ids
-        }
-        priority_order = self._derive_job_priority_order(task_priority)
-
-        # 3. Simulate Schedule
         starts, finishes = self._build_schedule(job_assignment, priority_order)
 
-        # 4. Task-Level Cost Calculations
-        core_overflows, cluster_overflows = self._calculate_mem(task_assignment)
-        comm_cost = self._calculate_comm_cost(task_assignment)
+        c_max = max(finishes.values()) if finishes else 0
 
-        # 5. Job-Level Violations
+        core_overflows, cluster_overflows = self._calculate_mem(job_assignment)
+        comm_cost = self._calculate_comm_cost(job_assignment)
+
         precedence_violation = self._calculate_precedence_violation(
             starts=starts,
             finishes=finishes,
@@ -156,64 +134,47 @@ class GaModel:
 
         same_core_overlap_violation = self._calculate_same_core_overlap_violation(starts, finishes, job_assignment)
 
-        jitter_violation = self._calculate_jitter_violation(starts)
-
         violation = (
                 precedence_violation
                 + deadline_violation
                 + same_core_overlap_violation
-                + jitter_violation
         )
 
         # Increase violation cost in later generations
         base_weight = 100
-        growth_factor = min(1.0, current_generation / self.max_generations)
+        growth_factor = min(1.0, current_generation / 500.0)
         violation_weight = base_weight + (999900 * growth_factor)
         violation_cost = violation_weight * violation
 
         weight_scalars = self.problem_instance.memory_penalty_scale
 
-        objective_cost = (
-                weight_scalars.get("core_overflow_scale", 1) * sum(core_overflows.values())
+        total_cost = (
+                c_max
+                + weight_scalars.get("core_overflow_scale", 1) * sum(core_overflows.values())
                 + weight_scalars.get("cluster_overflow_scale", 1) * sum(cluster_overflows.values())
                 + comm_cost
+                + violation_cost
         )
-
-        total_cost = objective_cost + violation_cost
 
         return {
             "job_assignment": job_assignment,
             "priority_order": priority_order,
             "starts": starts,
             "finishes": finishes,
+            "cmax": c_max,
             "core_overflows": core_overflows,
             "cluster_overflows": cluster_overflows,
             "comm_cost": comm_cost,
             "deadline_violation": deadline_violation,
             "precedence_violation": precedence_violation,
-            "same_core_overlap_violation": same_core_overlap_violation,
             "constraint_violation": violation,
             "constraint_violation_cost": violation_cost,
-            "objective": objective_cost,
             "total_cost": total_cost,
         }
 
     # ------------------------------------------------------------------
     # PyGAD
     # ------------------------------------------------------------------
-
-    def on_generation(self, ga_instance):
-        elapsed = time.time() - self.start_time
-
-        if ga_instance.generations_completed % 100 == 0:
-            logger.debug(
-                "Generation %d | time elapsed: %.2f",
-                ga_instance.generations_completed,
-                elapsed,
-            )
-
-        if elapsed >= self.time_limit_seconds:
-            return "stop"
 
     def fitness_func(self, ga_instance, solution, solution_idx):
         decoded = self.decode_solution(solution, ga_instance.generations_completed)
@@ -222,51 +183,43 @@ class GaModel:
 
     def _gene_types(self):
         types = []
-        for _ in range(len(self.tasks)):
+
+        for _ in range(len(self.jobs)):
             types.append(int)
-        for _ in range(len(self.tasks)):
+
+        for _ in range(len(self.jobs)):
             types.append(float)
+
         return types
 
     # ------------------------------------------------------------------
-    # Decoding (Task Level)
+    # Decoding
     # ------------------------------------------------------------------
 
-    def _decode_task_assignment(self, solution) -> Dict[str, str]:
+    def _decode_assignment(self, solution) -> Dict[str, str]:
         assignment: Dict[str, str] = {}
-        for idx, task_id in enumerate(self.task_ids):
-            eligible_cores = self.eligible_core_list_task[idx]
+
+        for idx, job_id in enumerate(self.job_ids):
+            eligible_cores = self.eligible_core_list[idx]
 
             choice_idx = int(round(solution[idx]))
             choice_idx = max(0, min(choice_idx, len(eligible_cores) - 1))
 
-            assignment[task_id] = eligible_cores[choice_idx]
+            assignment[job_id] = eligible_cores[choice_idx]
+
         return assignment
 
-    def _decode_task_priority(self, solution) -> Dict[str, float]:
-        task_priority: Dict[str, float] = {}
-        offset = len(self.task_ids)
-        for idx, task_id in enumerate(self.task_ids):
-            task_priority[task_id] = float(solution[idx + offset])
-        return task_priority
-
-    def _derive_job_priority_order(self, task_priority: Dict[str, float]) -> List[str]:
+    def _decode_priority_order(self, solution) -> List[str]:
         prio_values = []
-        for job_id in self.job_ids:
-            job = self.jobs[job_id]
-            t_prio = task_priority[job.task_id]
-            # Fixed priority deterministic sort:
-            # 1. Highest Task Priority (-t_prio)
-            # 2. Earliest Release Time
-            # 3. Job Index (Tie Breaker)
-            prio_values.append((job_id, t_prio, float(job.release_time), self.job_index[job_id]))
+        offset = len(self.job_ids)
 
-        prio_values.sort(key=lambda x: (-x[1], x[2], x[3]))
-        return [x[0] for x in prio_values]
+        for idx, job_id in enumerate(self.job_ids):
+            prio_value = float(solution[idx + offset])
+            prio_values.append((job_id, prio_value))
 
-    # ------------------------------------------------------------------
-    # Schedule Builder (Remains Job Level)
-    # ------------------------------------------------------------------
+        prio_values.sort(key=lambda x: (-x[1], self.job_index[x[0]]))
+
+        return [job_id for job_id, _ in prio_values]
 
     def _build_schedule(
             self,
@@ -283,23 +236,23 @@ class GaModel:
         # Forcibly schedule chain root jobs
         anchored_job_ids = set()
 
-        if self.is_strict_start:
-            for job_id in self.job_ids:
-                job = self.jobs[job_id]
+        for job_id in self.job_ids:
+            job = self.jobs[job_id]
 
-                if job.is_chain_root and job.chain_id is not None:
-                    core_id = assignment[job_id]
-                    duration = self.duration_cache[job_id][core_id]
+            if job.is_chain_root and job.chain_id is not None:
+                core_id = assignment[job_id]
+                duration = self.duration_cache[job_id][core_id]
 
-                    start = float(job.release_time)
-                    finish = start + duration
+                start = float(job.release_time)
+                finish = start + duration
 
-                    starts[job_id] = start
-                    finishes[job_id] = finish
-                    anchored_job_ids.add(job_id)
+                starts[job_id] = start
+                finishes[job_id] = finish
+                anchored_job_ids.add(job_id)
 
-                    intervals_by_core[core_id].append((start, finish, job_id))
+                intervals_by_core[core_id].append((start, finish, job_id))
 
+        # Schedule rest (predecessor jobs) wherever an interval in core is available
         for core_id in self.core_ids:
             intervals_by_core[core_id].sort(key=lambda item: (item[0], item[1], item[2]))
 
@@ -411,23 +364,23 @@ class GaModel:
         return candidate
 
     # ------------------------------------------------------------------
-    # Cost methods (Task Level)
+    # Cost methods
     # ------------------------------------------------------------------
 
     def _calculate_mem(
             self,
-            task_assignment: Dict[str, str],
+            assignment: Dict[str, str],
     ) -> Tuple[Dict[str, float], Dict[str, float]]:
         mem_by_core = {core_id: 0.0 for core_id in self.core_ids}
         mem_by_cluster = {cluster_id: 0.0 for cluster_id in self.cluster_ids}
 
-        for task_id, core_id in task_assignment.items():
-            t_memory = self.tasks[task_id].memory
+        for job_id, core_id in assignment.items():
+            job_memory = self.job_memory[job_id]
 
-            mem_by_core[core_id] += t_memory
+            mem_by_core[core_id] += job_memory
 
             cluster_id = self.core_to_cluster[core_id]
-            mem_by_cluster[cluster_id] += t_memory
+            mem_by_cluster[cluster_id] += job_memory
 
         core_overflow = {}
         cluster_overflow = {}
@@ -446,7 +399,7 @@ class GaModel:
 
         return core_overflow, cluster_overflow
 
-    def _calculate_comm_cost(self, task_assignment: Dict[str, str]) -> float:
+    def _calculate_comm_cost(self, assignment: Dict[str, str]) -> float:
         explicit_path_penalty = self.explicit_path_penalty
         comm_penalty_weight = self.problem_instance.comms_penalty_weight
         intra_core_weight = comm_penalty_weight.get("intra_core_weight", 0)
@@ -455,14 +408,9 @@ class GaModel:
 
         total = 0.0
 
-        for dep in self.problem_instance.dependencies:
+        for dep in self.problem_instance.job_dependencies:
             i, j = dep.predecessor, dep.successor
-
-            # Tasks without an assignment skipped (safety)
-            if i not in task_assignment or j not in task_assignment:
-                continue
-
-            core_i, core_j = task_assignment[i], task_assignment[j]
+            core_i, core_j = assignment[i], assignment[j]
 
             if (core_i, core_j) in explicit_path_penalty:
                 total += explicit_path_penalty[(core_i, core_j)]
@@ -476,7 +424,7 @@ class GaModel:
         return total
 
     #################################################
-    # Violation calculations (Job Level)
+    # Violation calculations
     ################################################
     def _calculate_terminal_deadline_violation(
             self,
@@ -560,23 +508,6 @@ class GaModel:
 
                 if previous_finish is None or finish > previous_finish:
                     previous_finish = finish
-
-        return violation
-
-    def _calculate_jitter_violation(self, starts: Dict[str, float]) -> float:
-        if self.jitter is None or self.jitter <= 0:
-            return 0.0
-
-        violation = 0.0
-
-        for job_id in self.job_ids:
-            job = self.jobs[job_id]
-            if job.is_chain_root and job.chain_id is not None:
-                actual_start = starts.get(job_id)
-                if actual_start is not None:
-                    max_allowed_start = float(job.release_time) + self.jitter
-                    if actual_start > max_allowed_start:
-                        violation += (actual_start - max_allowed_start)
 
         return violation
 

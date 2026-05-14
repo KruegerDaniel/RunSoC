@@ -1,10 +1,16 @@
+import gc
 import logging
 from timeit import default_timer as timer
 
 from ortools.sat.python import cp_model
 
+from scheduling.metrics import (
+    compute_communication_penalty,
+    compute_deadline_violation,
+    compute_memory_penalty,
+)
 from schemas.schemas import ProblemInstance
-from schemas.solver_result import SolverResult
+from schemas.solver_result import SolverResult, ObjectiveBreakdown
 from .model_builder import build_model_cpsat
 from ..base_solver import BaseSolver
 from ..extractor import build_solution_response
@@ -15,26 +21,28 @@ logger = logging.getLogger(__name__)
 class CpSolverService(BaseSolver):
     name = "CPSAT"
 
-    def __init__(self, time_limit_seconds: int = 5000, num_workers: int = 8):
+    def __init__(self, time_limit_seconds: int = 3600, num_workers: int = 8):
         self.time_limit_seconds = time_limit_seconds
         self.num_workers = num_workers
 
-    def solve(self, problem: ProblemInstance) -> dict:
-        model, vars_dict = build_model_cpsat(problem)
+    def solve(self, problem: ProblemInstance, hints: dict = None) -> dict:
+        model, vars_dict = build_model_cpsat(problem, hints=hints)
         solver = cp_model.CpSolver()
 
         solver.parameters.max_time_in_seconds = self.time_limit_seconds
         solver.parameters.num_search_workers = self.num_workers
+        solver.parameters.log_search_progress = False
 
         logger.info(
-            "CP-SAT solve started | tasks=%s | cores=%s | clusters=%s | time_limit=%s",
-            len(problem.tasks),
+            "CP-SAT solve started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s | time_limit=%s",
+            len(problem.jobs),
+            len(problem.job_dependencies),
             len(problem.cores),
             len(problem.clusters),
             self.time_limit_seconds,
         )
 
-        # solver.parameters.log_search_progress = True
+
         start = timer()
         status_code = solver.Solve(model)
         runtime_seconds = timer() - start
@@ -56,7 +64,14 @@ class CpSolverService(BaseSolver):
             metadata={"runtime_seconds": runtime_seconds},
         )
 
-        return build_solution_response(problem, normalized_result)
+        response = build_solution_response(problem, normalized_result)
+
+        # Forced cleanup since this crashed on multiple runs
+        del model
+        del solver
+        del vars_dict
+        gc.collect()
+        return response
 
     @classmethod
     def _to_normalized_result(
@@ -67,6 +82,9 @@ class CpSolverService(BaseSolver):
             problem_instance: ProblemInstance,
             metadata: dict = None,
     ) -> SolverResult:
+        if metadata is None:
+            metadata = {}
+
         status = solver.status_name(status_code)
         feasible = status_code in (cp_model.OPTIMAL, cp_model.FEASIBLE)
 
@@ -79,7 +97,7 @@ class CpSolverService(BaseSolver):
                 feasible=False,
                 objective=None,
                 makespan=None,
-                assignment={},
+                job_assignment={},
                 starts={},
                 finishes={},
                 core_overflows={},
@@ -87,36 +105,37 @@ class CpSolverService(BaseSolver):
                 raw_status=status_code,
                 runtime_seconds=metadata.get("runtime_seconds", 0),
                 metadata={
-                    "time_scale": time_scale
-                }
+                    "time_scale": time_scale,
+                },
             )
 
         x = vars_dict["x"]
         s = vars_dict["s"]
         f = vars_dict["f"]
 
-        assignment = {}
+        job_assignment = {}
 
-        for task in problem_instance.tasks:
+        for job in problem_instance.jobs:
             assigned_core = next(
                 (
                     core_id
-                    for core_id in task.eligible_cores
-                    if (task.id, core_id) in x and solver.BooleanValue(x[task.id, core_id])
+                    for core_id in job.eligible_cores
+                    if (job.id, core_id) in x
+                       and solver.BooleanValue(x[job.id, core_id])
                 ),
                 None,
             )
 
-            assignment[task.id] = assigned_core
+            job_assignment[job.id] = assigned_core
 
         starts = {
-            task.id: solver.Value(s[task.id]) / time_scale
-            for task in problem_instance.tasks
+            job.id: solver.Value(s[job.id]) / time_scale
+            for job in problem_instance.jobs
         }
 
         finishes = {
-            task.id: solver.Value(f[task.id]) / time_scale
-            for task in problem_instance.tasks
+            job.id: solver.Value(f[job.id]) / time_scale
+            for job in problem_instance.jobs
         }
 
         core_overflows = {
@@ -129,15 +148,36 @@ class CpSolverService(BaseSolver):
             for cluster in problem_instance.clusters
         }
 
-        makespan = solver.Value(vars_dict["cmax"]) / time_scale
+        makespan = max(finishes.values())
+
+        memory_penalty = compute_memory_penalty(
+            problem_instance,
+            core_overflows,
+            cluster_overflows,
+        )
+
+        communication_penalty = compute_communication_penalty(
+            problem_instance,
+            job_assignment,
+        )
+
+        deadline_penalty = compute_deadline_violation(
+            problem_instance,
+            finishes,
+        )
 
         return SolverResult(
             solver=cls.name,
             status=status,
             feasible=True,
-            objective=solver.ObjectiveValue(),
+            objective=solver.ObjectiveValue() / time_scale,
+            objective_breakdown=ObjectiveBreakdown(
+                memory_penalty=memory_penalty,
+                communication_penalty=communication_penalty,
+                deadline_penalty=deadline_penalty,
+            ),
             makespan=makespan,
-            assignment=assignment,
+            job_assignment=job_assignment,
             starts=starts,
             finishes=finishes,
             core_overflows=core_overflows,
@@ -146,6 +186,7 @@ class CpSolverService(BaseSolver):
             runtime_seconds=metadata.get("runtime_seconds", 0),
             metadata={
                 "time_scale": time_scale,
+                "scaled_objective": solver.ObjectiveValue(),
                 "best_objective_bound": solver.BestObjectiveBound(),
                 "wall_time": solver.WallTime(),
                 "num_conflicts": solver.NumConflicts(),

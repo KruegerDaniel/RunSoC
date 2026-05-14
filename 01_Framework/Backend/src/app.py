@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from mappers.problem_instance_mapper import ProblemInstanceMapper
 from scheduling.cpsat.cp_solver_service import CpSolverService
+from services.presolver.feasability_service import FeasibilitySolverService
 from scheduling.ga.ga_solver_service import GASolverService
 from scheduling.ilp.ilp_solver_service import IlpSolverService
 from services.scheduling_service import run_scheduling_request
@@ -23,6 +24,7 @@ configure_logging(app, log_dir="logs", log_file="app.log", max_age_days=1)
 
 logger = logging.getLogger(__name__)
 
+feasability_service = FeasibilitySolverService()
 solvers = {
     "CPSAT": CpSolverService(),
     "ILP": IlpSolverService(),
@@ -60,6 +62,14 @@ def solve(solver_name: str):
         data = request.get_json(silent=True) or {}
         problem = mapper.from_request_json(data)
 
+        feasability = feasability_service.check_feasibility(problem)
+        is_feasible = feasability.get("feasible", False)
+
+        if not is_feasible:
+            return jsonify(feasability), 400
+
+        task_assignment = feasability.get("task_assignment", {})
+
         solver_key = solver_name.upper()
         solver = solvers.get(solver_key)
 
@@ -77,7 +87,7 @@ def solve(solver_name: str):
             len(problem.cores),
             len(problem.clusters),
         )
-        result = solver.solve(problem)
+        result = solver.solve(problem, hints=task_assignment)
 
         logger.info("Solver completed: %s", solver_key)
 

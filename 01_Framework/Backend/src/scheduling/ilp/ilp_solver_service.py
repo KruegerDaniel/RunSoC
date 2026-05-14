@@ -5,40 +5,58 @@ import pulp
 
 from scheduling.base_solver import BaseSolver
 from scheduling.extractor import build_solution_response
-from scheduling.ilp.model_builder import build_model
+from scheduling.ilp.ilp_model_builder import build_model
+from scheduling.metrics import compute_deadline_violation, compute_communication_penalty, compute_memory_penalty
 from schemas.schemas import ProblemInstance
-from schemas.solver_result import SolverResult
+from schemas.solver_result import SolverResult, ObjectiveBreakdown
 from utils.numerical_util import clean_num
 
 logger = logging.getLogger(__name__)
 
+
 class IlpSolverService(BaseSolver):
     name = "CBC"
 
-    def __init__(self, time_limit_seconds: int = 5000, keep_files: bool = False):
+    def __init__(self, time_limit_seconds: int = 30, keep_files: bool = False, threads: int = 8):
         self.time_limit_seconds = time_limit_seconds
         self.keep_files = keep_files
+        self.threads = threads
 
-    def solve(self, problem: ProblemInstance) -> dict:
-        model, variables = build_model(problem)
+    def solve(self, problem: ProblemInstance, hints: dict = None) -> dict:
         logger.info(
-            "CBC solve started | tasks=%s | cores=%s | clusters=%s | time_limit=%s",
-            len(problem.tasks),
+            "CBC model building started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s",
+            len(problem.jobs),
+            len(problem.job_dependencies),
+            len(problem.cores),
+            len(problem.clusters),
+        )
+        startTime = timer()
+        model, variables = build_model(problem)
+        runtime_model_building_seconds = timer() - startTime
+
+        logger.info(
+            "CBC solve started | jobs=%s | job_dependencies=%s | cores=%s | clusters=%s | time_limit=%s | threads=%s",
+            len(problem.jobs),
+            len(problem.job_dependencies),
             len(problem.cores),
             len(problem.clusters),
             self.time_limit_seconds,
+            self.threads,
         )
 
         solver = pulp.PULP_CBC_CMD(
-            msg=True,
+            msg=False,
             keepFiles=self.keep_files,
             logPath="cbc.log" if self.keep_files else None,
             timeLimit=self.time_limit_seconds,
+            threads=self.threads,
         )
-        start = timer()
-        status_code = model.solve(solver)
 
-        runtime_seconds = timer() - start
+        start_solve = timer()
+        status_code = model.solve(solver)
+        runtime_seconds = timer() - startTime
+        solve_time = timer() - start_solve
+
         status = pulp.LpStatus[status_code]
 
         logger.info(
@@ -55,7 +73,9 @@ class IlpSolverService(BaseSolver):
             problem_instance=problem,
             metadata={
                 "runtime_seconds": runtime_seconds,
-            }
+                "model_building_seconds": runtime_model_building_seconds,
+                "solve_time": solve_time,
+            },
         )
 
         return build_solution_response(problem, normalized_result)
@@ -71,6 +91,7 @@ class IlpSolverService(BaseSolver):
     ) -> SolverResult:
         if metadata is None:
             metadata = {}
+
         status = pulp.LpStatus[status_code]
         feasible = status in {"Optimal", "Feasible"}
 
@@ -81,37 +102,45 @@ class IlpSolverService(BaseSolver):
                 feasible=False,
                 objective=None,
                 makespan=None,
-                assignment={},
+                job_assignment={},
                 starts={},
                 finishes={},
                 core_overflows={},
                 cluster_overflows={},
                 raw_status=status_code,
                 runtime_seconds=metadata.get("runtime_seconds", 0),
+                metadata=metadata,
             )
+
         x = vars_dict["x"]
         s = vars_dict["s"]
         f = vars_dict["f"]
 
-        assignment = {}
-        for task in problem_instance.tasks:
+        job_assignment = {}
+
+        for job in problem_instance.jobs:
             assigned_core = next(
-                (core_id
-                 for core_id in task.eligible_cores
-                 if cls._solved_binary(x[task.id][core_id])
-                 ),
+                (
+                    core_id
+                    for core_id in job.eligible_cores
+                    if cls._solved_binary(x[job.id][core_id])
+                ),
                 None,
             )
-            assignment[task.id] = assigned_core
+
+            job_assignment[job.id] = assigned_core
 
         starts = {
-            task.id: cls._solved_number(s[task.id])
-            for task in problem_instance.tasks
+            job.id: cls._solved_number(s[job.id])
+            for job in problem_instance.jobs
         }
+
         finishes = {
-            task.id: cls._solved_number(f[task.id])
-            for task in problem_instance.tasks
+            job.id: cls._solved_number(f[job.id])
+            for job in problem_instance.jobs
         }
+
+        makespan = max(finishes.values()) if finishes else 0
 
         raw_core_overflows = vars_dict["core_overflow"]
         core_overflows = {
@@ -121,24 +150,48 @@ class IlpSolverService(BaseSolver):
 
         raw_cluster_overflows = vars_dict["cluster_overflow"]
         cluster_overflows = {
-            cluster.id: cls._solved_number(raw_cluster_overflows[cluster.id], default=0)
+            cluster.id: cls._solved_number(
+                raw_cluster_overflows[cluster.id],
+                default=0,
+            )
             for cluster in problem_instance.clusters
         }
+
+        memory_penalty = compute_memory_penalty(
+            problem_instance,
+            core_overflows,
+            cluster_overflows,
+        )
+
+        communication_penalty = compute_communication_penalty(
+            problem_instance,
+            job_assignment,
+        )
+
+        deadline_penalty = compute_deadline_violation(
+            problem_instance,
+            finishes,
+        )
 
         return SolverResult(
             solver=cls.name,
             status=status,
             feasible=True,
             objective=cls._solved_number(model.objective),
-            makespan=cls._solved_number(vars_dict["cmax"]),
-
-            assignment=assignment,
+            objective_breakdown=ObjectiveBreakdown(
+                memory_penalty=memory_penalty,
+                communication_penalty=communication_penalty,
+                deadline_penalty=deadline_penalty,
+            ),
+            makespan=makespan,
+            job_assignment=job_assignment,
             starts=starts,
             finishes=finishes,
             core_overflows=core_overflows,
             cluster_overflows=cluster_overflows,
             raw_status=status_code,
-            runtime_seconds=metadata.get("runtime_seconds"),
+            runtime_seconds=metadata.get("runtime_seconds", 0),
+            metadata=metadata,
         )
 
     @staticmethod
