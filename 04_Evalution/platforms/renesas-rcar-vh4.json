@@ -194,7 +194,8 @@
             "wcetScale": 1.2,
             "localMemoryKB": 128,
             "supportedTaskTypes": [
-              "event"
+              "event",
+              "periodic"
             ],
             "count": 1,
             "notes": "Intelligent Cryptographic Unit Processor. Event-driven."

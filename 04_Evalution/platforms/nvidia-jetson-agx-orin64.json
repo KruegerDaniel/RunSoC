@@ -194,6 +194,7 @@
             "wcetScale": 1.2,
             "localMemoryKB": 256,
             "supportedTaskTypes": [
+              "periodic",
               "event"
             ],
             "count": 1,
