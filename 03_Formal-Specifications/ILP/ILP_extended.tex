@@ -9,8 +9,6 @@
 \usepackage{hyperref}
 
 \title{Formal ILP Formulation for RunSoC 2.0}
-\author{}
-\date{}
 
 \begin{document}
 \maketitle
@@ -303,7 +301,7 @@ o_k^{\mathrm{cluster}} &\geq 0
 \begin{itemize}
     \item \textbf{Decoupling of Tasks and Jobs:} The current architecture decouples memory footprints (Tasks) from temporal executions (Jobs). While multiple instances (Jobs) of a Task may exist in the schedule, the core's memory budget is only impacted once per assigned Task.
     \item \textbf{Constraint Solvers:} In practice, tools like CP-SAT natively handle intervals and `NoOverlap` constraints, removing the need for manual Big-M transformations ($u_{jj'}$). This document represents the formal mathematical equivalent.
-    \item \textbf{Soft Memory Budgets:} Budgets remain modeled as soft constraints to ensure model feasibility, relying on penalty scaling ($\lambda_{\mathrm{core}}$, $\lambda_{\mathrm{cluster}}$) to enforce preferred hardware limits.
+    \item \textbf{Memory-Pressure Optimization Weight:} Memory budgets remain modeled as soft constraints to preserve model feasibility. The scalar weights $\lambda_{\mathrm{core}}$ and $\lambda_{\mathrm{cluster}}$ define the preferred optimization focus on memory pressure: values closer to $0$ reduce the importance of memory-budget violations in the objective, while larger values increase the optimizer's preference for assignments that respect core- and cluster-level memory limits.
 \end{itemize}
 
 \end{document}
