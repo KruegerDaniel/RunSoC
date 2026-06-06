@@ -175,7 +175,7 @@ const RunnableConfigPanel = ({selection = null, onRunnableClick}: RunnableConfig
                             type="button"
                             variant="outline"
                             onClick={() =>
-                                window.open(`/result/${resultId}`, '_blank')
+                                window.open(`/v1/result/${resultId}`, '_blank')
                             }
                         >
                             View Result

@@ -21,7 +21,7 @@ export function useSimulationRunner(getValues: () => SimulationForm) {
         setLoading(true);
 
         try {
-            const res = await fetch('/api/simulate', {
+            const res = await fetch('/v1/api/simulate', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
