@@ -148,7 +148,7 @@ class CpSolverService(BaseSolver):
             for cluster in problem_instance.clusters
         }
 
-        makespan = max(finishes.values())
+        makespan = max(finishes.values()) if finishes else 0
 
         memory_penalty = compute_memory_penalty(
             problem_instance,
