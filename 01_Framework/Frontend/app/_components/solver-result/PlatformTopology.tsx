@@ -29,7 +29,7 @@ export function PlatformTopology({ result }: Props) {
                 MPSoC allocation topology
             </h3>
             <p className="mt-1 text-sm text-slate-600">
-                Cluster and core placement with assigned job counts.
+                Cluster and core placement with assigned job and unique task counts.
             </p>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -59,16 +59,22 @@ export function PlatformTopology({ result }: Props) {
                                         }`}
                                     >
                                         {clusterMemory.overflow > 0
-                                            ? `Overflow ${formatKb(clusterMemory.overflow)}`
-                                            : 'No overflow'}
+                                            ? `Task overflow ${formatKb(clusterMemory.overflow)}`
+                                            : 'No task overflow'}
                                     </div>
                                 )}
                             </div>
 
                             {clusterMemory && (
                                 <div className="mb-3 text-xs text-slate-600">
-                                    Cluster memory: {formatKb(clusterMemory.used)} /{' '}
-                                    {formatKb(clusterMemory.budget)}
+                                    <div>
+                                        Cluster task memory: {formatKb(clusterMemory.used)} /{' '}
+                                        {formatKb(clusterMemory.budget)}
+                                    </div>
+                                    <div>
+                                        Assigned: {clusterMemory.assigned_job_count ?? clusterMemory.assigned_jobs.length} jobs /{' '}
+                                        {clusterMemory.assigned_task_count ?? clusterMemory.assigned_tasks?.length ?? 0} tasks
+                                    </div>
                                 </div>
                             )}
 
@@ -79,7 +85,7 @@ export function PlatformTopology({ result }: Props) {
                                         className={`rounded-lg border p-3 ${
                                             core.overflow > 0
                                                 ? 'border-red-300 bg-red-50'
-                                                : core.assigned_jobs.length > 0
+                                                : (core.assigned_job_count ?? core.assigned_jobs.length) > 0
                                                     ? 'border-blue-200 bg-white'
                                                     : 'border-slate-200 bg-white opacity-70'
                                         }`}
@@ -94,11 +100,17 @@ export function PlatformTopology({ result }: Props) {
                                             <div>
                                                 <span className="text-slate-500">Jobs</span>
                                                 <div className="font-semibold">
-                                                    {core.assigned_jobs.length}
+                                                    {core.assigned_job_count ?? core.assigned_jobs.length}
                                                 </div>
                                             </div>
                                             <div>
-                                                <span className="text-slate-500">Memory</span>
+                                                <span className="text-slate-500">Tasks</span>
+                                                <div className="font-semibold">
+                                                    {core.assigned_task_count ?? core.assigned_tasks?.length ?? 0}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-500">Task memory</span>
                                                 <div className="font-semibold">
                                                     {formatKb(core.used)}
                                                 </div>
@@ -110,7 +122,7 @@ export function PlatformTopology({ result }: Props) {
                                                 </div>
                                             </div>
                                             <div>
-                                                <span className="text-slate-500">Overflow</span>
+                                                <span className="text-slate-500">Task overflow</span>
                                                 <div
                                                     className={`font-semibold ${
                                                         core.overflow > 0

@@ -30,6 +30,7 @@ class SolverResult:
     makespan: Optional[float]
 
     job_assignment: Dict[str, Optional[str]]
+    task_assignment: Dict[str, Optional[str]]
 
     starts: Dict[str, Optional[float]]
     finishes: Dict[str, Optional[float]]

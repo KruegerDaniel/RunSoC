@@ -1,3 +1,5 @@
+import logging
+
 from schemas.schemas import ProblemInstance
 from schemas.solver_result import SolverResult
 from scheduling.metrics import (
@@ -8,6 +10,9 @@ from scheduling.metrics import (
     compute_memory_penalty,
 )
 from utils.numerical_util import clean_num
+
+
+logger = logging.getLogger(__name__)
 
 
 def _as_dict_objective_breakdown(result: SolverResult) -> dict:
@@ -80,6 +85,43 @@ def _build_summary(problem: ProblemInstance, scheduled_job_count: int) -> dict:
         "cluster_count": len(problem.clusters),
         "horizon": problem.horizon,
     }
+
+def _task_memory_sum(tasks_by_id: dict, task_ids: list[str]) -> float:
+    return sum(
+        tasks_by_id[task_id].memory
+        for task_id in task_ids
+        if task_id in tasks_by_id
+    )
+
+
+def _computed_overflow(used: float, budget: float) -> float:
+    return max(0.0, float(used or 0.0) - float(budget or 0.0))
+
+
+def _warn_on_overflow_mismatch(
+    *,
+    scope: str,
+    resource_id: str,
+    used: float,
+    budget: float,
+    reported_overflow: float,
+    tolerance: float = 1e-6,
+) -> None:
+    computed = _computed_overflow(used=used, budget=budget)
+    reported = float(reported_overflow or 0.0)
+
+    if abs(computed - reported) <= tolerance:
+        return
+
+    logger.warning(
+        "%s task-memory overflow mismatch | id=%s | used=%s | budget=%s | computed=%s | reported=%s",
+        scope,
+        resource_id,
+        clean_num(used),
+        clean_num(budget),
+        clean_num(computed),
+        clean_num(reported),
+    )
 
 
 def _sum_overflows(resource_entries: list[dict]) -> float:
@@ -214,9 +256,22 @@ def build_solution_response(
             for job_id, core_id in result.job_assignment.items()
             if core_id == core.id
         )
+        assigned_tasks = sorted(
+            task_id
+            for task_id, core_id in result.task_assignment.items()
+            if core_id == core.id
+        )
 
-        used = sum(jobs_by_id[job_id].memory for job_id in assigned_jobs)
+        used = _task_memory_sum(tasks_by_id, assigned_tasks)
         overflow = result.core_overflows.get(core.id, 0)
+
+        _warn_on_overflow_mismatch(
+            scope="Core",
+            resource_id=core.id,
+            used=used,
+            budget=core.memory_budget,
+            reported_overflow=overflow,
+        )
 
         core_memory.append(
             {
@@ -227,6 +282,10 @@ def build_solution_response(
                 "used": clean_num(used),
                 "overflow": clean_num(overflow),
                 "assigned_jobs": assigned_jobs,
+                "assigned_job_count": len(assigned_jobs),
+                "assigned_tasks": assigned_tasks,
+                "assigned_task_count": len(assigned_tasks),
+                "memory_accounting": "task_level",
             }
         )
 
@@ -244,9 +303,22 @@ def build_solution_response(
             for job_id, core_id in result.job_assignment.items()
             if core_id in cluster_core_ids
         )
+        assigned_tasks = sorted(
+            task_id
+            for task_id, core_id in result.task_assignment.items()
+            if core_id in cluster_core_ids
+        )
 
-        used = sum(jobs_by_id[job_id].memory for job_id in assigned_jobs)
+        used = _task_memory_sum(tasks_by_id, assigned_tasks)
         overflow = result.cluster_overflows.get(cluster.id, 0)
+
+        _warn_on_overflow_mismatch(
+            scope="Cluster",
+            resource_id=cluster.id,
+            used=used,
+            budget=cluster.memory_budget,
+            reported_overflow=overflow,
+        )
 
         cluster_memory.append(
             {
@@ -256,6 +328,10 @@ def build_solution_response(
                 "used": clean_num(used),
                 "overflow": clean_num(overflow),
                 "assigned_jobs": assigned_jobs,
+                "assigned_job_count": len(assigned_jobs),
+                "assigned_tasks": assigned_tasks,
+                "assigned_task_count": len(assigned_tasks),
+                "memory_accounting": "task_level",
             }
         )
 
@@ -330,6 +406,7 @@ def build_solution_response(
             "bottleneck": bottleneck,
         },
         "resource_usage": {
+            "memory_accounting": "task_level",
             "core_memory": core_memory,
             "cluster_memory": cluster_memory,
         },

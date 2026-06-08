@@ -62,7 +62,7 @@ export function JobTable({ result }: Props) {
                                 'Duration',
                                 'Deadline',
                                 'Slack',
-                                'Memory',
+                                'Task memory',
                             ].map((header) => (
                                 <th
                                     key={header}

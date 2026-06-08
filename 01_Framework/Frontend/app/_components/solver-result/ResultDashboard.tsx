@@ -92,7 +92,7 @@ export function ResultDashboard({ result }: Props) {
                         tone={deadlineViolations === 0 ? 'good' : 'bad'}
                     />
                     <KpiCard
-                        label="Memory overflow"
+                        label="Task memory overflow"
                         value={formatKb(memoryOverflow)}
                         tone={memoryOverflow === 0 ? 'good' : 'bad'}
                     />

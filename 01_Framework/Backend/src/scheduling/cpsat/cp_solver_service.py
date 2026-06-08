@@ -42,7 +42,6 @@ class CpSolverService(BaseSolver):
             self.time_limit_seconds,
         )
 
-
         start = timer()
         status_code = solver.Solve(model)
         runtime_seconds = timer() - start
@@ -128,6 +127,23 @@ class CpSolverService(BaseSolver):
 
             job_assignment[job.id] = assigned_core
 
+        y = vars_dict["y"]
+
+        task_assignment = {}
+
+        for task in problem_instance.tasks:
+            assigned_core = next(
+                (
+                    core_id
+                    for core_id in task.eligible_cores
+                    if (task.id, core_id) in y
+                       and solver.BooleanValue(y[task.id, core_id])
+                ),
+                None,
+            )
+
+            task_assignment[task.id] = assigned_core
+
         starts = {
             job.id: solver.Value(s[job.id]) / time_scale
             for job in problem_instance.jobs
@@ -170,7 +186,7 @@ class CpSolverService(BaseSolver):
             solver=cls.name,
             status=status,
             feasible=True,
-            objective=solver.ObjectiveValue() / time_scale,
+            objective=solver.ObjectiveValue(),
             objective_breakdown=ObjectiveBreakdown(
                 memory_penalty=memory_penalty,
                 communication_penalty=communication_penalty,
@@ -178,6 +194,7 @@ class CpSolverService(BaseSolver):
             ),
             makespan=makespan,
             job_assignment=job_assignment,
+            task_assignment=task_assignment,
             starts=starts,
             finishes=finishes,
             core_overflows=core_overflows,

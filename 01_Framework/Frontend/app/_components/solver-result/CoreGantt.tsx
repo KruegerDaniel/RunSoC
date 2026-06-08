@@ -169,7 +169,7 @@ export function CoreGantt({ result }: Props) {
                             </dd>
                         </div>
                         <div>
-                            <dt className="text-slate-500">Memory</dt>
+                            <dt className="text-slate-500">Task memory footprint</dt>
                             <dd className="font-medium">{selectedJob.memory} KB</dd>
                         </div>
                         <div>

@@ -29,6 +29,8 @@ export type ScheduledJob = {
     notes?: string;
 };
 
+export type MemoryAccounting = 'task_level' | string;
+
 export type MemoryUsage = {
     core_id?: string;
     core_name?: string;
@@ -38,6 +40,10 @@ export type MemoryUsage = {
     used: number;
     overflow: number;
     assigned_jobs: string[];
+    assigned_tasks?: string[];
+    assigned_job_count?: number;
+    assigned_task_count?: number;
+    memory_accounting?: MemoryAccounting;
 };
 
 export type SolverResult = {
@@ -74,6 +80,7 @@ export type SolverResult = {
         bottleneck: string;
     };
     resource_usage: {
+        memory_accounting?: MemoryAccounting;
         core_memory: MemoryUsage[];
         cluster_memory: MemoryUsage[];
     };
