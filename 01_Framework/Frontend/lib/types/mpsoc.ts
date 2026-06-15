@@ -82,7 +82,8 @@ export type Task = {
 };
 
 export type Communication = {
-    from: string;
-    to: string;
-    sizeBytes: number;
+    source: string;
+    target: string;
+    penalty: number;
+    notes?: string;
 };

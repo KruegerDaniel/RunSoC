@@ -28,7 +28,7 @@
         "cores": [
           {
             "name": "arm_cortex_a76",
-            "id": "core_a76_gp",
+            "id": "core_a76_gp_0",
             "frequencyGhz": 1.8,
             "executionDomain": "general_purpose",
             "wcetScale": 1.0,
@@ -37,7 +37,21 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "count": 1,
+            "notes": "L1: 1/64 KB per core. D/64 KB per core. L2: 256 KB per core."
+          },
+          {
+            "name": "arm_cortex_a76",
+            "id": "core_a76_gp_1",
+            "frequencyGhz": 1.8,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "L1: 1/64 KB per core. D/64 KB per core. L2: 256 KB per core."
           }
         ],
@@ -60,7 +74,7 @@
         "cores": [
           {
             "name": "arm_cortex_a76",
-            "id": "core_a76_comms",
+            "id": "core_a76_comms_0",
             "frequencyGhz": 1.8,
             "executionDomain": "automotive_comms",
             "wcetScale": 1.0,
@@ -69,7 +83,21 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "count": 1,
+            "notes": "L1: 1/64 KB per core. D/64 KB per core. L2: 256 KB per core."
+          },
+          {
+            "name": "arm_cortex_a76",
+            "id": "core_a76_comms_1",
+            "frequencyGhz": 1.8,
+            "executionDomain": "automotive_comms",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "L1: 1/64 KB per core. D/64 KB per core. L2: 256 KB per core."
           }
         ],
@@ -92,7 +120,7 @@
         "cores": [
           {
             "name": "lockstep_arm_cortex_r52",
-            "id": "core_r52_safety",
+            "id": "core_r52_safety_0",
             "frequencyGhz": 1.4,
             "executionDomain": "safety",
             "wcetScale": 1.1,
@@ -101,7 +129,21 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "count": 1,
+            "notes": "L1 I/D cache 32K/32K bytes (ECC). ATCM/BTCM/CTCM (32K/32K/32K bytes) (ECC)."
+          },
+          {
+            "name": "lockstep_arm_cortex_r52",
+            "id": "core_r52_safety_1",
+            "frequencyGhz": 1.4,
+            "executionDomain": "safety",
+            "wcetScale": 1.1,
+            "localMemoryKB": 160,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "L1 I/D cache 32K/32K bytes (ECC). ATCM/BTCM/CTCM (32K/32K/32K bytes) (ECC)."
           }
         ],
@@ -156,7 +198,7 @@
         "cores": [
           {
             "name": "ceva_sp500m_dsp",
-            "id": "core_dsp_vision",
+            "id": "core_dsp_vision_0",
             "frequencyGhz": 0.64,
             "executionDomain": "vision_or_accelerated",
             "wcetScale": 0.4,
@@ -165,7 +207,49 @@
               "event",
               "periodic"
             ],
-            "count": 4,
+            "count": 1,
+            "notes": "Highly parallel DSP core. WCET scaled down for vectorized vision workloads."
+          },
+          {
+            "name": "ceva_sp500m_dsp",
+            "id": "core_dsp_vision_1",
+            "frequencyGhz": 0.64,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.4,
+            "localMemoryKB": 640,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "Highly parallel DSP core. WCET scaled down for vectorized vision workloads."
+          },
+          {
+            "name": "ceva_sp500m_dsp",
+            "id": "core_dsp_vision_2",
+            "frequencyGhz": 0.64,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.4,
+            "localMemoryKB": 640,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "Highly parallel DSP core. WCET scaled down for vectorized vision workloads."
+          },
+          {
+            "name": "ceva_sp500m_dsp",
+            "id": "core_dsp_vision_3",
+            "frequencyGhz": 0.64,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.4,
+            "localMemoryKB": 640,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "Highly parallel DSP core. WCET scaled down for vectorized vision workloads."
           }
         ],

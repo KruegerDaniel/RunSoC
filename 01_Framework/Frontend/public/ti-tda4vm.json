@@ -28,7 +28,7 @@
         "cores": [
           {
             "name": "arm_cortex_a72",
-            "id": "a72_core",
+            "id": "a72_core_0",
             "frequencyGhz": 2.0,
             "executionDomain": "general_purpose",
             "wcetScale": 1.0,
@@ -37,7 +37,19 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "notes": "Abstracts dedicated L2 cache budget"
+          },
+          {
+            "name": "arm_cortex_a72",
+            "id": "a72_core_1",
+            "frequencyGhz": 2.0,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 1024,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
             "notes": "Abstracts dedicated L2 cache budget"
           }
         ],
@@ -106,7 +118,7 @@
         "cores": [
           {
             "name": "arm_cortex_r5f_sensor",
-            "id": "r5f_sensor_core",
+            "id": "r5f_sensor_core_0",
             "frequencyGhz": 1.0,
             "executionDomain": "sensor",
             "wcetScale": 1.1,
@@ -115,12 +127,26 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "count": 1,
+            "notes": "Mapped to handle radar/lidar/imu inputs"
+          },
+          {
+            "name": "arm_cortex_r5f_sensor",
+            "id": "r5f_sensor_core_1",
+            "frequencyGhz": 1.0,
+            "executionDomain": "sensor",
+            "wcetScale": 1.1,
+            "localMemoryKB": 1024,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "Mapped to handle radar/lidar/imu inputs"
           },
           {
             "name": "arm_cortex_r5f_comms",
-            "id": "r5f_comms_core",
+            "id": "r5f_comms_core_0",
             "frequencyGhz": 1.0,
             "executionDomain": "automotive_comms",
             "wcetScale": 1.1,
@@ -129,7 +155,21 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "count": 1,
+            "notes": "Mapped to handle CAN-FD, PCIe, Ethernet"
+          },
+          {
+            "name": "arm_cortex_r5f_comms",
+            "id": "r5f_comms_core_1",
+            "frequencyGhz": 1.0,
+            "executionDomain": "automotive_comms",
+            "wcetScale": 1.1,
+            "localMemoryKB": 512,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "Mapped to handle CAN-FD, PCIe, Ethernet"
           }
         ],
@@ -177,7 +217,7 @@
         "cores": [
           {
             "name": "c66x_dsp",
-            "id": "c66x_core",
+            "id": "c66x_core_0",
             "frequencyGhz": 1.35,
             "executionDomain": "vision_or_accelerated",
             "wcetScale": 0.9,
@@ -186,7 +226,21 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "count": 1,
+            "notes": "Maps legacy vision algorithms"
+          },
+          {
+            "name": "c66x_dsp",
+            "id": "c66x_core_1",
+            "frequencyGhz": 1.35,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.9,
+            "localMemoryKB": 2048,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "Maps legacy vision algorithms"
           }
         ],

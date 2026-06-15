@@ -28,7 +28,7 @@
         "cores": [
           {
             "name": "arm_cortex_a78ae",
-            "id": "core_a78ae_gp",
+            "id": "core_a78ae_gp_0",
             "frequencyGhz": 2.2,
             "executionDomain": "general_purpose",
             "wcetScale": 1.0,
@@ -37,7 +37,49 @@
               "event",
               "periodic"
             ],
-            "count": 4,
+            "count": 1,
+            "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
+          },
+          {
+            "name": "arm_cortex_a78ae",
+            "id": "core_a78ae_gp_1",
+            "frequencyGhz": 2.2,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
+          },
+          {
+            "name": "arm_cortex_a78ae",
+            "id": "core_a78ae_gp_2",
+            "frequencyGhz": 2.2,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
+          },
+          {
+            "name": "arm_cortex_a78ae",
+            "id": "core_a78ae_gp_3",
+            "frequencyGhz": 2.2,
+            "executionDomain": "general_purpose",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
           }
         ],
@@ -60,7 +102,7 @@
         "cores": [
           {
             "name": "arm_cortex_a78ae",
-            "id": "core_a78ae_comms",
+            "id": "core_a78ae_comms_0",
             "frequencyGhz": 2.2,
             "executionDomain": "automotive_comms",
             "wcetScale": 1.0,
@@ -69,7 +111,49 @@
               "event",
               "periodic"
             ],
-            "count": 4,
+            "count": 1,
+            "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
+          },
+          {
+            "name": "arm_cortex_a78ae",
+            "id": "core_a78ae_comms_1",
+            "frequencyGhz": 2.2,
+            "executionDomain": "automotive_comms",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
+          },
+          {
+            "name": "arm_cortex_a78ae",
+            "id": "core_a78ae_comms_2",
+            "frequencyGhz": 2.2,
+            "executionDomain": "automotive_comms",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
+            "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
+          },
+          {
+            "name": "arm_cortex_a78ae",
+            "id": "core_a78ae_comms_3",
+            "frequencyGhz": 2.2,
+            "executionDomain": "automotive_comms",
+            "wcetScale": 1.0,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
           }
         ],
@@ -92,7 +176,7 @@
         "cores": [
           {
             "name": "lockstep_arm_cortex_a78ae",
-            "id": "core_a78ae_safety",
+            "id": "core_a78ae_safety_0",
             "frequencyGhz": 2.2,
             "executionDomain": "safety",
             "wcetScale": 1.1,
@@ -101,7 +185,21 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "count": 1,
+            "notes": "Lockstep execution enabled. L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
+          },
+          {
+            "name": "lockstep_arm_cortex_a78ae",
+            "id": "core_a78ae_safety_1",
+            "frequencyGhz": 2.2,
+            "executionDomain": "safety",
+            "wcetScale": 1.1,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "Lockstep execution enabled. L1 Cache: 64 KB I-cache + 64 KB D-cache. L2 Cache: 256 KB per CPU core."
           }
         ],
@@ -156,7 +254,7 @@
         "cores": [
           {
             "name": "pva_vector_processing_unit",
-            "id": "core_pva_vpu",
+            "id": "core_pva_vpu_0",
             "frequencyGhz": 1.0,
             "executionDomain": "vision_or_accelerated",
             "wcetScale": 0.5,
@@ -165,7 +263,21 @@
               "event",
               "periodic"
             ],
-            "count": 2,
+            "count": 1,
+            "notes": "Dual Vector Processing Units (VPU). Application-specific instruction vector processor. 384 KB memory per VPU."
+          },
+          {
+            "name": "pva_vector_processing_unit",
+            "id": "core_pva_vpu_1",
+            "frequencyGhz": 1.0,
+            "executionDomain": "vision_or_accelerated",
+            "wcetScale": 0.5,
+            "localMemoryKB": 384,
+            "supportedTaskTypes": [
+              "event",
+              "periodic"
+            ],
+            "count": 1,
             "notes": "Dual Vector Processing Units (VPU). Application-specific instruction vector processor. 384 KB memory per VPU."
           }
         ],
