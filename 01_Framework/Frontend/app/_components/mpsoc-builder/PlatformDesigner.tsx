@@ -1398,7 +1398,7 @@ function replaceAccessibleBy(
     previousId: string,
     nextId: string,
 ) {
-    return memoryNodes?.map((memory) => ({
+    return (memoryNodes ?? []).map((memory) => ({
         ...memory,
         accessibleBy: (memory.accessibleBy ?? []).map((id) =>
             id === previousId ? nextId : id,
@@ -1410,7 +1410,7 @@ function removeAccessibleBy(
     memoryNodes: MemoryNode[] | undefined,
     references: Set<string>,
 ) {
-    return memoryNodes?.map((memory) => ({
+    return (memoryNodes ?? []).map((memory) => ({
         ...memory,
         accessibleBy: (memory.accessibleBy ?? []).filter(
             (id) => !references.has(id),

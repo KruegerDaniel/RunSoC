@@ -1,6 +1,6 @@
 import { Box, Flex, IconButton, Text, TextField } from '@radix-ui/themes';
 import { Cross2Icon } from '@radix-ui/react-icons';
-import { Runnable } from '@/types/runnable';
+import { Runnable } from '@/lib/types/runnable';
 import { Controller, useFormContext } from 'react-hook-form';
 import ConfigSelectField from './ConfigSelectField';
 import DependencySelector from './DependencySelector';

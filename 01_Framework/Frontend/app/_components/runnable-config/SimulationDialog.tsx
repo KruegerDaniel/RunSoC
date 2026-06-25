@@ -5,7 +5,7 @@ import type {
     Algorithm,
     AllocationPolicy,
     SchedulingPolicy,
-} from '@/types/algorithms';
+} from '@/lib/types/algorithms';
 
 type Props = {
     open: boolean;

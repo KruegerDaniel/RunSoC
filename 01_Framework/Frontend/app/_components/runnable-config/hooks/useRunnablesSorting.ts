@@ -1,7 +1,7 @@
 'use client';
 
 import {useCallback, useState} from 'react';
-import type {Runnable} from '@/types/runnable';
+import type {Runnable} from '@/lib/types/runnable';
 
 export type SortKey = 'id' | 'name' | 'priority' | 'execution_time'
 export type SortDir = 'asc' | 'desc'

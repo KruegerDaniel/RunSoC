@@ -1,6 +1,6 @@
 import {Flex, Select, Text} from '@radix-ui/themes';
 import {Controller, useFormContext} from 'react-hook-form';
-import {Runnable, SimulationForm} from '@/types/runnable';
+import {Runnable, SimulationForm} from '@/lib/types/runnable';
 import HintIcon from '@/app/_components/runnable-config/HintIcon';
 
 interface Props {

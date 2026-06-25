@@ -1,12 +1,12 @@
 'use client';
 
 import {useState} from 'react';
-import type {SimulationForm} from '@/types/runnable';
+import type {SimulationForm} from '@/lib/types/runnable';
 import type {
     Algorithm,
     AllocationPolicy,
     SchedulingPolicy,
-} from '@/types/algorithms';
+} from '@/lib/types/algorithms';
 
 export function useSimulationRunner(getValues: () => SimulationForm) {
     const [loading, setLoading] = useState(false);

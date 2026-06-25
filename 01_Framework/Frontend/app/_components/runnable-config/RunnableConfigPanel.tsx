@@ -4,8 +4,8 @@
 import { useRef, useState } from 'react';
 import { Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes';
 import { useFormContext } from 'react-hook-form';
-import type { SimulationForm } from '@/types/runnable';
-import type { Algorithm, AllocationPolicy, SchedulingPolicy } from '@/types/algorithms';
+import type { SimulationForm } from '@/lib/types/runnable';
+import type { Algorithm, AllocationPolicy, SchedulingPolicy } from '@/lib/types/algorithms';
 
 import ImportJsonButton from './ImportJsonButton';
 import SimulationDialog from './SimulationDialog';

@@ -74,11 +74,21 @@ export type MemoryNode = {
 export type Task = {
     id: string;
     name: string;
-    type: 'event' | 'periodic';
+    type?: 'event' | 'periodic';
+    taskType?: 'event' | 'periodic';
     wcet: number;
+    duration?: number;
     period?: number;
     deadline?: number;
-    memoryKB?: number;
+    minStart?: number;
+    memoryUsageKB?: number;
+    memory?: number;
+    requiredDomain?: string;
+    eligibleCores?: string[];
+    dependencies?: string[];
+    criticality?: number;
+    priority?: number;
+    notes?: string;
 };
 
 export type Communication = {
