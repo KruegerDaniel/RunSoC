@@ -127,9 +127,9 @@ def build_model_cpsat(problem: ProblemInstance, hints: dict = None):
     )
 
     horizon = (
-            max(max_release, max_deadline) * time_scale
-            + total_worst_case_duration
-            + 1
+        max(max_release, max_deadline) * time_scale
+        + total_worst_case_duration
+        + 1
     )
 
     # -----------------------------
@@ -198,9 +198,7 @@ def build_model_cpsat(problem: ProblemInstance, hints: dict = None):
 
             x[i, core_id] = model.NewBoolVar(f"x_{i}_{core_id}")
 
-            # --- CRITICAL CHANGE ---
-            # Channel the Job assignment (x) directly to the Task assignment (y).
-            # This guarantees partitioned scheduling and removes enormous symmetry.
+            # Channel the job assignment directly to the task assignment.
             model.Add(x[i, core_id] == y[job.task_id, core_id])
 
             dur_ic = scaled_duration[i, core_id]
@@ -233,15 +231,19 @@ def build_model_cpsat(problem: ProblemInstance, hints: dict = None):
             jitter = getattr(problem, "max_chain_jitter", 0)
 
             if jitter == 0:
-                # Strict start
+                # Strict start at release.
                 model.Add(s[i] == release_tick)
-            if jitter < 0:
-                # Unbounded start
-                model.add(s[i] >= release_tick)
+
+            elif jitter < 0:
+                # Unbounded start after release.
+                model.Add(s[i] >= release_tick)
+
             else:
-                # Bounded start within jitter window
-                model.add(s[i] >= release_tick)
-                model.add(s[i] <= release_tick + jitter)
+                # Bounded start within jitter window.
+                jitter_ticks = int(Fraction(str(jitter)) * time_scale)
+
+                model.Add(s[i] >= release_tick)
+                model.Add(s[i] <= release_tick + jitter_ticks)
 
     # -----------------------------
     # Job precedence constraints
@@ -269,53 +271,102 @@ def build_model_cpsat(problem: ProblemInstance, hints: dict = None):
 
     # -----------------------------
     # Core / cluster memory overflow
-    # CALCULATED AT THE TASK LEVEL
     # -----------------------------
+    core_used_memory = {}
     core_overflow = {}
+
+    cluster_used_memory = {}
     cluster_overflow = {}
 
+    core_max_possible_mem = {}
+
     for core_id in core_ids:
+        core_budget = int(cores[core_id].memory_budget)
+
         max_possible_mem = sum(
-            tasks[t_id].memory
+            int(tasks[t_id].memory)
             for t_id in task_ids
             if core_id in tasks[t_id].eligible_cores
         )
 
-        core_overflow[core_id] = model.NewIntVar(
-            0, max_possible_mem, f"core_overflow_{core_id}"
+        core_max_possible_mem[core_id] = max_possible_mem
+
+        core_used_memory[core_id] = model.NewIntVar(
+            0,
+            max_possible_mem,
+            f"core_used_memory_{core_id}",
         )
 
-        used_memory = sum(
-            tasks[t_id].memory * y[t_id, core_id]
+        used_memory_expr = sum(
+            int(tasks[t_id].memory) * y[t_id, core_id]
             for t_id in task_ids
             if (t_id, core_id) in y
         )
 
+        model.Add(core_used_memory[core_id] == used_memory_expr)
+
+        core_spill_diff = model.NewIntVar(
+            -core_budget,
+            max_possible_mem,
+            f"core_spill_diff_{core_id}",
+        )
+
         model.Add(
-            used_memory <= cores[core_id].memory_budget + core_overflow[core_id]
+            core_spill_diff
+            == core_used_memory[core_id] - core_budget
+        )
+
+        core_overflow[core_id] = model.NewIntVar(
+            0,
+            max_possible_mem,
+            f"core_overflow_{core_id}",
+        )
+
+        model.AddMaxEquality(
+            core_overflow[core_id],
+            [core_spill_diff, 0],
         )
 
     for cluster_id in cluster_ids:
-        max_possible_mem = sum(
-            tasks[t_id].memory
-            for t_id in task_ids
-            for core_id in cluster_to_cores[cluster_id]
-            if (t_id, core_id) in y
+        cluster_budget = int(clusters[cluster_id].memory_budget)
+        cluster_core_ids = cluster_to_cores[cluster_id]
+
+        max_possible_cluster_spill = sum(
+            core_max_possible_mem[core_id]
+            for core_id in cluster_core_ids
         )
 
-        cluster_overflow[cluster_id] = model.NewIntVar(
-            0, max_possible_mem, f"cluster_overflow_{cluster_id}"
-        )
-
-        used_memory = sum(
-            tasks[t_id].memory * y[t_id, core_id]
-            for t_id in task_ids
-            for core_id in cluster_to_cores[cluster_id]
-            if (t_id, core_id) in y
+        cluster_used_memory[cluster_id] = model.NewIntVar(
+            0,
+            max_possible_cluster_spill,
+            f"cluster_used_memory_{cluster_id}",
         )
 
         model.Add(
-            used_memory <= clusters[cluster_id].memory_budget + cluster_overflow[cluster_id]
+            cluster_used_memory[cluster_id]
+            == sum(core_overflow[core_id] for core_id in cluster_core_ids)
+        )
+
+        cluster_overflow_diff = model.NewIntVar(
+            -cluster_budget,
+            max_possible_cluster_spill,
+            f"cluster_overflow_diff_{cluster_id}",
+        )
+
+        model.Add(
+            cluster_overflow_diff
+            == cluster_used_memory[cluster_id] - cluster_budget
+        )
+
+        cluster_overflow[cluster_id] = model.NewIntVar(
+            0,
+            max_possible_cluster_spill,
+            f"cluster_overflow_{cluster_id}",
+        )
+
+        model.AddMaxEquality(
+            cluster_overflow[cluster_id],
+            [cluster_overflow_diff, 0],
         )
 
     # -----------------------------
@@ -328,6 +379,7 @@ def build_model_cpsat(problem: ProblemInstance, hints: dict = None):
     }
 
     comm_penalty_weight = problem.comms_penalty_weight
+
     intra_core_weight = comm_penalty_weight.get("intra_core_weight", 0)
     inter_core_weight = comm_penalty_weight.get("inter_core_weight", 0)
     inter_cluster_weight = comm_penalty_weight.get("inter_cluster_weight", 0)
@@ -379,6 +431,8 @@ def build_model_cpsat(problem: ProblemInstance, hints: dict = None):
         "s_local": s_local,
         "f_local": f_local,
         "intervals": intervals,
+        "core_used_memory": core_used_memory,
+        "cluster_used_memory": cluster_used_memory,
         "core_overflows": core_overflow,
         "cluster_overflows": cluster_overflow,
         "z": z,

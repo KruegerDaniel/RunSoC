@@ -95,8 +95,14 @@ class CpSolverService(BaseSolver):
                 status=status,
                 feasible=False,
                 objective=None,
+                objective_breakdown=ObjectiveBreakdown(
+                    memory_penalty=0.0,
+                    communication_penalty=0.0,
+                    deadline_penalty=0.0,
+                ),
                 makespan=None,
                 job_assignment={},
+                task_assignment={},
                 starts={},
                 finishes={},
                 core_overflows={},
@@ -105,6 +111,11 @@ class CpSolverService(BaseSolver):
                 runtime_seconds=metadata.get("runtime_seconds", 0),
                 metadata={
                     "time_scale": time_scale,
+                    "scaled_objective": None,
+                    "best_objective_bound": None,
+                    "wall_time": solver.WallTime(),
+                    "num_conflicts": solver.NumConflicts(),
+                    "num_branches": solver.NumBranches(),
                 },
             )
 

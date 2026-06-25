@@ -46,15 +46,7 @@ class GASolverService(BaseSolver):
         )
 
         start = timer()
-        # dynamic sol_per_pop
-        sol_per_pop = max(20, len(problem.tasks) * 15)
-        properties = {
-            **self.ga_properties,
-            "sol_per_pop": sol_per_pop,
-            "keep_parents": max(3, int(sol_per_pop * 0.1)),
-            "num_parents_mating": max(10, int(sol_per_pop * 0.4)),
-        }
-        decoded = model.solve(properties)
+        decoded = model.solve(self._default_ga_properties())
         runtime_seconds = timer() - start
         decoded["runtime_seconds"] = runtime_seconds
 
