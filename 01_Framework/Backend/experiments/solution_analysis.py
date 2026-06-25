@@ -887,7 +887,11 @@ def aggregate_bottlenecks(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------
 # Plotting helpers
 # ---------------------------------------------------------------------
-
+TITLE_FONTSIZE = 18
+AXIS_LABEL_FONTSIZE = 16
+TICK_LABEL_FONTSIZE = 15
+LEGEND_FONTSIZE = 13
+ANNOTATION_FONTSIZE = 11
 
 def ensure_analysis_dir(analysis_dir: Path) -> None:
     analysis_dir.mkdir(parents=True, exist_ok=True)
@@ -939,11 +943,13 @@ def save_runtime_vs_task_count(df: pd.DataFrame, analysis_dir: Path) -> Path:
         )
 
     plt.yscale("log")
-    plt.xlabel("Number of task templates")
-    plt.ylabel("Runtime seconds, log scale")
-    plt.title("Solver runtime vs. task count")
+    plt.xlabel("Number of task templates", fontsize=AXIS_LABEL_FONTSIZE)
+    plt.ylabel("Runtime seconds, log scale", fontsize=AXIS_LABEL_FONTSIZE)
+    plt.title("Solver runtime vs. task count", fontsize=TITLE_FONTSIZE)
+    plt.xticks(fontsize=TICK_LABEL_FONTSIZE)
+    plt.yticks(fontsize=TICK_LABEL_FONTSIZE)
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-    plt.legend()
+    plt.legend(fontsize=LEGEND_FONTSIZE)
     save_current_plot(path)
     return path
 
@@ -991,11 +997,13 @@ def save_runtime_vs_job_count(df: pd.DataFrame, analysis_dir: Path) -> Path:
         )
 
     plt.yscale("log")
-    plt.xlabel("Number of scheduled jobs")
-    plt.ylabel("Runtime seconds, log scale")
-    plt.title("Solver runtime vs. job count")
+    plt.xlabel("Number of scheduled jobs", fontsize=AXIS_LABEL_FONTSIZE)
+    plt.ylabel("Runtime seconds, log scale", fontsize=AXIS_LABEL_FONTSIZE)
+    plt.title("Solver runtime vs. scheduled job count", fontsize=TITLE_FONTSIZE)
+    plt.xticks(fontsize=TICK_LABEL_FONTSIZE)
+    plt.yticks(fontsize=TICK_LABEL_FONTSIZE)
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-    plt.legend()
+    plt.legend(fontsize=LEGEND_FONTSIZE)
     save_current_plot(path)
     return path
 
@@ -1016,10 +1024,12 @@ def save_objective_gap_boxplot(df: pd.DataFrame, analysis_dir: Path) -> Path:
     plt.figure(figsize=(8, 5))
     plt.boxplot(data, labels=solver_order, showmeans=True)
     plt.axhline(0, linestyle="--", linewidth=0.8)
-    plt.xlabel("Solver")
-    plt.ylabel("Objective gap to best-known solution (%)")
-    plt.title("Objective gap to best-known solution by solver")
-    plt.grid(True, axis="y", linestyle="--", linewidth=0.5)
+    plt.xlabel("Solver", fontsize=AXIS_LABEL_FONTSIZE)
+    plt.ylabel("Percent objective gap to best known", fontsize=AXIS_LABEL_FONTSIZE)
+    plt.title("Solver objective gap to best known", fontsize=TITLE_FONTSIZE)
+    plt.xticks(fontsize=TICK_LABEL_FONTSIZE)
+    plt.yticks(fontsize=TICK_LABEL_FONTSIZE)
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     save_current_plot(path)
     return path
 
@@ -1052,11 +1062,13 @@ def save_feasibility_rate_vs_task_count(df: pd.DataFrame, analysis_dir: Path) ->
         )
 
     plt.ylim(-0.05, 1.05)
-    plt.xlabel("Number of task templates")
-    plt.ylabel("Feasibility rate")
-    plt.title("Feasibility rate vs. task count")
-    plt.grid(True, linestyle="--", linewidth=0.5)
-    plt.legend()
+    plt.xlabel("Number of task templates", fontsize=AXIS_LABEL_FONTSIZE)
+    plt.ylabel("Feasibility rate", fontsize=AXIS_LABEL_FONTSIZE)
+    plt.title("Solver feasibility rate vs. task count", fontsize=TITLE_FONTSIZE)
+    plt.xticks(fontsize=TICK_LABEL_FONTSIZE)
+    plt.yticks(fontsize=TICK_LABEL_FONTSIZE)
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+    plt.legend(fontsize=LEGEND_FONTSIZE)
     save_current_plot(path)
     return path
 
