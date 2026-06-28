@@ -70,7 +70,7 @@ class GASolverService(BaseSolver):
             decoded=decoded,
             status=status,
             feasible=feasible,
-            ga_properties=properties,
+            ga_properties=self._default_ga_properties(),
         )
 
         return build_solution_response(problem, normalized_result)
@@ -84,6 +84,7 @@ class GASolverService(BaseSolver):
             ga_properties: dict = None,
     ) -> SolverResult:
         job_assignment = decoded["job_assignment"]
+        task_assignment = decoded["task_assignment"]
         starts = decoded["starts"]
         finishes = decoded["finishes"]
         makespan = max(finishes.values()) if finishes else 0
@@ -114,6 +115,7 @@ class GASolverService(BaseSolver):
             ),
             makespan=makespan,
             job_assignment=job_assignment,
+            task_assignment=task_assignment,
             starts=starts,
             finishes=finishes,
             core_overflows=decoded["core_overflows"],

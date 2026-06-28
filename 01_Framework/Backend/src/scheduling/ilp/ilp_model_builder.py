@@ -130,21 +130,120 @@ def build_model(problem: ProblemInstance):
     # ---------------------------
     # Core/Cluster memory overflow at Task Level
     # ---------------------------
+    core_used_memory = {}
+    cluster_used_memory = {}
+
+    core_spill_active = {}
+    cluster_spill_active = {}
+
+    core_max_possible_mem = {}
+
+    # Exact core overflow modeling
     for c in core_ids:
-        model += (
-                pulp.lpSum(tasks[t_id].memory * y_alloc[t_id][c] for t_id in task_ids)
-                <= cores[c].memory_budget + core_overflow[c]
-        ), f"core_mem_budget_{c}"
+        core_budget = int(cores[c].memory_budget)
 
+        max_possible_mem = sum(
+            int(tasks[t_id].memory)
+            for t_id in task_ids
+            if c in tasks[t_id].eligible_cores
+        )
+
+        core_max_possible_mem[c] = max_possible_mem
+
+        core_used_memory[c] = pulp.LpVariable(
+            f"core_used_memory_{c}",
+            lowBound=0,
+            upBound=max_possible_mem,
+            cat="Continuous",
+        )
+
+        core_spill_active[c] = pulp.LpVariable(
+            f"core_spill_active_{c}",
+            cat="Binary",
+        )
+
+        used_expr = pulp.lpSum(
+            int(tasks[t_id].memory) * y_alloc[t_id][c]
+            for t_id in task_ids
+            if c in tasks[t_id].eligible_cores
+        )
+
+        model += (
+                core_used_memory[c] == used_expr
+        ), f"core_used_memory_def_{c}"
+
+        # diff = core_used_memory[c] - core_budget
+        # core_overflow[c] = max(0, diff)
+        diff_expr = core_used_memory[c] - core_budget
+
+        # Big-M must cover both positive and negative diff ranges.
+        core_m = max(core_budget, max_possible_mem - core_budget, 0)
+
+        model += (
+                core_overflow[c] >= diff_expr
+        ), f"core_overflow_lb_diff_{c}"
+
+        model += (
+                core_overflow[c] >= 0
+        ), f"core_overflow_lb_zero_{c}"
+
+        model += (
+                core_overflow[c] <= diff_expr + core_m * (1 - core_spill_active[c])
+        ), f"core_overflow_ub_diff_{c}"
+
+        model += (
+                core_overflow[c] <= core_m * core_spill_active[c]
+        ), f"core_overflow_ub_zero_{c}"
+
+    # Exact cluster overflow modeling
     for cl in cluster_ids:
-        model += (
-                pulp.lpSum(
-                    tasks[t_id].memory * y_alloc[t_id][c]
-                    for t_id in task_ids
-                    for c in cluster_to_cores[cl]
-                ) <= clusters[cl].memory_budget + cluster_overflow[cl]
-        ), f"cluster_mem_budget_{cl}"
+        cluster_budget = int(clusters[cl].memory_budget)
+        cluster_core_ids = cluster_to_cores[cl]
 
+        max_possible_cluster_spill = sum(
+            core_max_possible_mem[c]
+            for c in cluster_core_ids
+        )
+
+        cluster_used_memory[cl] = pulp.LpVariable(
+            f"cluster_used_memory_{cl}",
+            lowBound=0,
+            upBound=max_possible_cluster_spill,
+            cat="Continuous",
+        )
+
+        cluster_spill_active[cl] = pulp.LpVariable(
+            f"cluster_spill_active_{cl}",
+            cat="Binary",
+        )
+
+        model += (
+                cluster_used_memory[cl]
+                == pulp.lpSum(core_overflow[c] for c in cluster_core_ids)
+        ), f"cluster_used_memory_def_{cl}"
+
+        # diff = cluster_used_memory[cl] - cluster_budget
+        # cluster_overflow[cl] = max(0, diff)
+        diff_expr = cluster_used_memory[cl] - cluster_budget
+
+        cluster_m = max(cluster_budget, max_possible_cluster_spill - cluster_budget, 0)
+
+        model += (
+                cluster_overflow[cl] >= diff_expr
+        ), f"cluster_overflow_lb_diff_{cl}"
+
+        model += (
+                cluster_overflow[cl] >= 0
+        ), f"cluster_overflow_lb_zero_{cl}"
+
+        model += (
+                cluster_overflow[cl] <= diff_expr + cluster_m * (1 - cluster_spill_active[cl])
+        ), f"cluster_overflow_ub_diff_{cl}"
+
+        model += (
+                cluster_overflow[cl] <= cluster_m * cluster_spill_active[cl]
+        ), f"cluster_overflow_ub_zero_{cl}"
+        
     # -------------------------------
     # No overlap on core constraint
     # -------------------------------
