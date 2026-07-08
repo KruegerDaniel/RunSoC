@@ -168,7 +168,7 @@ class GaModel:
         # Increase violation cost in later generations
         base_weight = 100
         growth_factor = min(1.0, current_generation / self.max_generations)
-        violation_weight = base_weight + (999900 * growth_factor)
+        violation_weight = base_weight + (999999 * growth_factor)
         violation_cost = violation_weight * violation
 
         weight_scalars = self.problem_instance.memory_penalty_scale
