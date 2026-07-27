@@ -1,0 +1,74 @@
+{
+  "platform": {
+    "name": "mandatory",
+    "numCores": 0,
+    "numClusters": 0,
+    "timeUnit": "optional",
+    "clusters": [
+      {
+        "name": "mandatory",
+        "id": "mandatory",
+        "type": "mandatory",
+        "numCores": 0,
+        "notes": "optional",
+        "sharedMemory": [
+          {
+            "name": "optional",
+            "sizeKB": 0,
+            "memoryBudget": 0
+          }
+        ],
+        "cores": [
+          {
+            "name": "mandatory",
+            "id_prefix": "optional",
+            "group": "mandatory",
+            "kDMIPS": 0,
+            "frequencyGhz": 0,
+            "count": 0,
+            "type": "mandatory",
+            "wcetScale": 0,
+            "localMemoryKB": 0,
+            "memoryBudget": 0,
+            "supportedTaskTypes": [
+              "mandatory"
+            ],
+            "notes": "optional"
+          }
+        ]
+      }
+    ],
+    "externalMemory": [
+      {
+        "name": "mandatory",
+        "type": "mandatory",
+        "sizeGb": 0,
+        "memoryBudget": 0
+      }
+    ]
+  },
+  "runnables": [
+    {
+      "id": "mandatory",
+      "name": "mandatory",
+      "criticality": 0,
+      "priority": 0,
+      "period": 0,
+      "wcet": 1,
+      "memory_usageKB": 15,
+      "type": "mandatory",
+      "core_affinities": [
+        "group"
+      ],
+      "dependencies": [
+        "runnable_id"
+      ]
+    }
+  ],
+  "communications": [
+    {
+      "source": "mandatory",
+      "destination": "mandatory"
+    }
+  ]
+}
