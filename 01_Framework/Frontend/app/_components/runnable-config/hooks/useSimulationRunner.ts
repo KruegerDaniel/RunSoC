@@ -1,12 +1,12 @@
 'use client';
 
 import {useState} from 'react';
-import type {SimulationForm} from '@/types/runnable';
+import type {SimulationForm} from '@/lib/types/runnable';
 import type {
     Algorithm,
     AllocationPolicy,
     SchedulingPolicy,
-} from '@/types/algorithms';
+} from '@/lib/types/algorithms';
 
 export function useSimulationRunner(getValues: () => SimulationForm) {
     const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ export function useSimulationRunner(getValues: () => SimulationForm) {
         setLoading(true);
 
         try {
-            const res = await fetch('/api/simulate', {
+            const res = await fetch('/v1/api/simulate', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({

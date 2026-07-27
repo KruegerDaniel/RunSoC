@@ -1,6 +1,6 @@
 // useImportJson.ts
 import { UseFormSetValue } from 'react-hook-form';
-import type { SimulationForm } from '@/types/runnable';
+import type { SimulationForm } from '@/lib/types/runnable';
 
 export function useImportJson(setValue: UseFormSetValue<SimulationForm>) {
     return (file: File) => {

@@ -168,7 +168,7 @@ class GaModel:
         # Increase violation cost in later generations
         base_weight = 100
         growth_factor = min(1.0, current_generation / self.max_generations)
-        violation_weight = base_weight + (999900 * growth_factor)
+        violation_weight = base_weight + (999999 * growth_factor)
         violation_cost = violation_weight * violation
 
         weight_scalars = self.problem_instance.memory_penalty_scale
@@ -183,6 +183,7 @@ class GaModel:
 
         return {
             "job_assignment": job_assignment,
+            "task_assignment": task_assignment,
             "priority_order": priority_order,
             "starts": starts,
             "finishes": finishes,
@@ -418,30 +419,42 @@ class GaModel:
             self,
             task_assignment: Dict[str, str],
     ) -> Tuple[Dict[str, float], Dict[str, float]]:
-        mem_by_core = {core_id: 0.0 for core_id in self.core_ids}
-        mem_by_cluster = {cluster_id: 0.0 for cluster_id in self.cluster_ids}
+        mem_by_core = {
+            core_id: 0.0
+            for core_id in self.core_ids
+        }
 
         for task_id, core_id in task_assignment.items():
-            t_memory = self.tasks[task_id].memory
-
+            t_memory = int(self.tasks[task_id].memory)
             mem_by_core[core_id] += t_memory
 
-            cluster_id = self.core_to_cluster[core_id]
-            mem_by_cluster[cluster_id] += t_memory
-
         core_overflow = {}
-        cluster_overflow = {}
 
         for core_id in self.core_ids:
+            core_budget = int(self.cores[core_id].memory_budget)
+
             core_overflow[core_id] = max(
                 0.0,
-                mem_by_core[core_id] - self.cores[core_id].memory_budget,
+                mem_by_core[core_id] - core_budget,
             )
 
+        spill_by_cluster = {
+            cluster_id: 0.0
+            for cluster_id in self.cluster_ids
+        }
+
+        for core_id, overflow in core_overflow.items():
+            cluster_id = self.core_to_cluster[core_id]
+            spill_by_cluster[cluster_id] += overflow
+
+        cluster_overflow = {}
+
         for cluster_id in self.cluster_ids:
+            cluster_budget = int(self.clusters[cluster_id].memory_budget)
+
             cluster_overflow[cluster_id] = max(
                 0.0,
-                mem_by_cluster[cluster_id] - self.clusters[cluster_id].memory_budget,
+                spill_by_cluster[cluster_id] - cluster_budget,
             )
 
         return core_overflow, cluster_overflow

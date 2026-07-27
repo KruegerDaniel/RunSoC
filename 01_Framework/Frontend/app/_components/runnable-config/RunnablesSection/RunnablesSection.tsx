@@ -2,7 +2,7 @@
 
 import { Button, Flex, ScrollArea, Text } from '@radix-ui/themes';
 import { useEffect, useMemo, useRef } from 'react';
-import type { Runnable } from '@/types/runnable';
+import type { Runnable } from '@/lib/types/runnable';
 import SortControls from '../SortControls';
 import RunnableCard from './RunnableCard';
 import { type SortKey, useRunnablesSorting } from '../hooks/useRunnablesSorting';

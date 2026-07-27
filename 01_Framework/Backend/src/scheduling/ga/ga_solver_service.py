@@ -46,15 +46,7 @@ class GASolverService(BaseSolver):
         )
 
         start = timer()
-        # dynamic sol_per_pop
-        sol_per_pop = max(20, len(problem.tasks) * 15)
-        properties = {
-            **self.ga_properties,
-            "sol_per_pop": sol_per_pop,
-            "keep_parents": max(3, int(sol_per_pop * 0.1)),
-            "num_parents_mating": max(10, int(sol_per_pop * 0.4)),
-        }
-        decoded = model.solve(properties)
+        decoded = model.solve(self._default_ga_properties())
         runtime_seconds = timer() - start
         decoded["runtime_seconds"] = runtime_seconds
 
@@ -78,7 +70,7 @@ class GASolverService(BaseSolver):
             decoded=decoded,
             status=status,
             feasible=feasible,
-            ga_properties=properties,
+            ga_properties=self._default_ga_properties(),
         )
 
         return build_solution_response(problem, normalized_result)
@@ -92,6 +84,7 @@ class GASolverService(BaseSolver):
             ga_properties: dict = None,
     ) -> SolverResult:
         job_assignment = decoded["job_assignment"]
+        task_assignment = decoded["task_assignment"]
         starts = decoded["starts"]
         finishes = decoded["finishes"]
         makespan = max(finishes.values()) if finishes else 0
@@ -122,6 +115,7 @@ class GASolverService(BaseSolver):
             ),
             makespan=makespan,
             job_assignment=job_assignment,
+            task_assignment=task_assignment,
             starts=starts,
             finishes=finishes,
             core_overflows=decoded["core_overflows"],
