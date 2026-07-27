@@ -28,7 +28,12 @@ app = Flask(__name__)
 app.config.from_object(get_config())
 CORS(app)
 
-configure_logging(app, log_dir="logs", log_file="app.log", max_age_days=1)
+configure_logging(
+    app,
+    log_dir=os.getenv("LOG_DIR", "logs"),
+    log_file="app.log",
+    max_age_days=1,
+)
 
 logger = logging.getLogger(__name__)
 logger.info("Starting backend with profile=%s", app.config["PROFILE"])

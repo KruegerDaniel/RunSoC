@@ -68,9 +68,6 @@ def configure_logging(
     if isinstance(resolved_level, str):
         resolved_level = resolved_level.upper()
 
-    Path(log_dir).mkdir(parents=True, exist_ok=True)
-    file_path = os.path.join(log_dir, log_file)
-
     formatter = logging.Formatter(
         fmt=(
             "%(asctime)s | %(levelname)s | %(name)s | "
@@ -82,20 +79,6 @@ def configure_logging(
 
     request_filter = RequestContextFilter()
 
-    file_handler = WeekRetentionTimedRotatingFileHandler(
-        filename=file_path,
-        when="midnight",
-        interval=1,
-        backupCount=0,
-        encoding="utf-8",
-        utc=True,
-        max_age_days=max_age_days,
-    )
-
-    file_handler.setFormatter(formatter)
-    file_handler.addFilter(request_filter)
-    file_handler.setLevel(resolved_level)
-
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     console_handler.setLevel(resolved_level)
@@ -105,8 +88,31 @@ def configure_logging(
     root_logger.setLevel(resolved_level)
 
     root_logger.handlers.clear()
-    root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
+
+    try:
+        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        file_path = os.path.join(log_dir, log_file)
+
+        file_handler = WeekRetentionTimedRotatingFileHandler(
+            filename=file_path,
+            when="midnight",
+            interval=1,
+            backupCount=0,
+            encoding="utf-8",
+            utc=True,
+            max_age_days=max_age_days,
+        )
+
+        file_handler.setFormatter(formatter)
+        file_handler.addFilter(request_filter)
+        file_handler.setLevel(resolved_level)
+        root_logger.addHandler(file_handler)
+    except OSError:
+        root_logger.warning(
+            "File logging disabled because log_dir=%s is not writable",
+            log_dir,
+        )
 
     if app is not None:
         app.logger.handlers.clear()

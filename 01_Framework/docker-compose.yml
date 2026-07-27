@@ -18,6 +18,9 @@ services:
       - "5001:5001"
     environment:
       RUNSOC_PROFILE: "prod"
+      HOME: "/tmp"
+      LOG_DIR: "/tmp/runsoc-logs"
+      MPLCONFIGDIR: "/tmp/matplotlib"
       RATE_LIMIT_REQUESTS: "120"
       RATE_LIMIT_WINDOW_SECONDS: "60"
       MAX_TASKS_PER_REQUEST: "200"
