@@ -7,7 +7,14 @@ from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from pydantic import ValidationError
 
+from config import get_config
 from mappers.problem_instance_mapper import ProblemInstanceMapper
+from rate_limiter import (
+    ConcurrentIpRequestLimiter,
+    InMemoryIpRateLimiter,
+    count_request_tasks,
+    get_client_ip,
+)
 from scheduling.cpsat.cp_solver_service import CpSolverService
 from services.presolver.feasability_service import FeasibilitySolverService
 from scheduling.ga.ga_solver_service import GASolverService
@@ -18,11 +25,39 @@ from utils.logger import configure_logging
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 app = Flask(__name__)
+app.config.from_object(get_config())
 CORS(app)
 
 configure_logging(app, log_dir="logs", log_file="app.log", max_age_days=1)
 
 logger = logging.getLogger(__name__)
+logger.info("Starting backend with profile=%s", app.config["PROFILE"])
+
+rate_limiter = None
+if app.config["RATE_LIMIT_ENABLED"]:
+    rate_limiter = InMemoryIpRateLimiter(
+        requests=app.config["RATE_LIMIT_REQUESTS"],
+        window_seconds=app.config["RATE_LIMIT_WINDOW_SECONDS"],
+    )
+    logger.info(
+        "IP rate limiting enabled: %s requests per %s seconds",
+        app.config["RATE_LIMIT_REQUESTS"],
+        app.config["RATE_LIMIT_WINDOW_SECONDS"],
+    )
+else:
+    logger.info("IP rate limiting disabled")
+
+concurrent_request_limiter = None
+if app.config["CONCURRENT_REQUEST_LIMIT_ENABLED"]:
+    concurrent_request_limiter = ConcurrentIpRequestLimiter(
+        max_running_requests=app.config["MAX_RUNNING_REQUESTS_PER_IP"],
+    )
+    logger.info(
+        "Concurrent IP request limiting enabled: %s running requests per IP",
+        app.config["MAX_RUNNING_REQUESTS_PER_IP"],
+    )
+else:
+    logger.info("Concurrent IP request limiting disabled")
 
 feasability_service = FeasibilitySolverService()
 solvers = {
@@ -36,11 +71,67 @@ mapper = ProblemInstanceMapper()
 @app.before_request
 def add_request_id():
     g.request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    g.client_ip = get_client_ip(
+        request,
+        trust_proxy_headers=app.config["RATE_LIMIT_TRUST_PROXY_HEADERS"],
+    )
+    g.concurrent_request_slot_acquired = False
+
+    if rate_limiter is None:
+        pass
+    else:
+        decision = rate_limiter.check(g.client_ip)
+        g.rate_limit_decision = decision
+
+        if not decision.allowed:
+            response = jsonify({"error": "Too many requests"})
+            response.status_code = 429
+            response.headers["Retry-After"] = str(decision.retry_after)
+            return response
+
+    if app.config["TASK_LIMIT_ENABLED"] and request.method in {"POST", "PUT", "PATCH"}:
+        data = request.get_json(silent=True) or {}
+        task_count = count_request_tasks(data)
+
+        if (
+            task_count is not None
+            and task_count > app.config["MAX_TASKS_PER_REQUEST"]
+        ):
+            return jsonify({
+                "error": "Too many tasks",
+                "max_tasks": app.config["MAX_TASKS_PER_REQUEST"],
+                "task_count": task_count,
+            }), 413
+
+    if concurrent_request_limiter is None:
+        return None
+
+    if concurrent_request_limiter.acquire(g.client_ip):
+        g.concurrent_request_slot_acquired = True
+        return None
+
+    return jsonify({
+        "error": "Too many running requests",
+        "max_running_requests_per_ip": app.config["MAX_RUNNING_REQUESTS_PER_IP"],
+    }), 429
 
 
 @app.after_request
 def add_request_id_header(response):
     response.headers["X-Request-ID"] = g.request_id
+
+    decision = getattr(g, "rate_limit_decision", None)
+    if decision is not None:
+        response.headers["X-RateLimit-Limit"] = str(decision.limit)
+        response.headers["X-RateLimit-Remaining"] = str(decision.remaining)
+        response.headers["X-RateLimit-Reset"] = str(decision.reset_seconds)
+
+    if (
+        concurrent_request_limiter is not None
+        and getattr(g, "concurrent_request_slot_acquired", False)
+    ):
+        concurrent_request_limiter.release(g.client_ip)
+
     return response
 
 @app.route("/api/schedule", methods=["POST"])
@@ -111,4 +202,9 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False, host="0.0.0.0", port=5001)
+    app.run(
+        debug=app.config["DEBUG"],
+        use_reloader=False,
+        host="0.0.0.0",
+        port=5001,
+    )

@@ -16,6 +16,12 @@ services:
     container_name: backend
     ports:
       - "5001:5001"
+    environment:
+      RUNSOC_PROFILE: "prod"
+      RATE_LIMIT_REQUESTS: "120"
+      RATE_LIMIT_WINDOW_SECONDS: "60"
+      MAX_TASKS_PER_REQUEST: "200"
+      MAX_RUNNING_REQUESTS_PER_IP: "2"
 
   frontend:
     build:
