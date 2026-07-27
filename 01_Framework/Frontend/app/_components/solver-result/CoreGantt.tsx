@@ -183,8 +183,8 @@ export function CoreGantt({ result }: Props) {
                                                     job.missedDeadline
                                                         ? 'border-red-400 bg-red-100 text-red-900'
                                                         : job.is_chain_root
-                                                          ? 'border-blue-300 bg-blue-100 text-blue-900'
-                                                          : 'border-slate-300 bg-slate-100 text-slate-900'
+                                                            ? 'border-blue-300 bg-blue-100 text-blue-900'
+                                                            : 'border-slate-300 bg-slate-100 text-slate-900'
                                                 }`}
                                                 style={{
                                                     left: `${left}%`,
