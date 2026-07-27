@@ -32,13 +32,13 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_FRONTEND_ORIGIN: "http://localhost:3000"
-        NEXT_PUBLIC_BACKEND_URL: "${NEXT_PUBLIC_BACKEND_URL:-http://localhost:5001}"
+        NEXT_PUBLIC_BACKEND_URL: "http://backend:5001/"
     container_name: frontend
     ports:
       - "3000:3000"
     environment:
       BACKEND_URL: "http://backend:5001/api/schedule"
       NEXT_PUBLIC_FRONTEND_ORIGIN: "http://localhost:3000"
-      NEXT_PUBLIC_BACKEND_URL: "${NEXT_PUBLIC_BACKEND_URL:-http://localhost:5001}"
+      NEXT_PUBLIC_BACKEND_URL: "http://backend:5001/"
     depends_on:
       - backend
