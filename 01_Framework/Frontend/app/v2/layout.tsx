@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { JsonModelProvider } from '@/lib/JsonModelContext';
-import Sidebar from '@/app/_components/mpsoc-builder/Sidebar';
+import Sidebar from '../_components/mpsoc-builder/Sidebar';
 
 export const metadata: Metadata = {
     title: 'Solver JSON Builder',
