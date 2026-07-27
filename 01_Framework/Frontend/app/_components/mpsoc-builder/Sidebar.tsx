@@ -235,7 +235,12 @@ export default function Sidebar() {
                 zIndex: 50,
             }}
         >
-            <div style={{ fontSize: 22, marginBottom: 20 }}>☰</div>
+            <SidebarActionLink
+                href="/v1"
+                icon="↩"
+                label="RunSoC v1"
+                title="Go to RunSoC v1"
+            />
 
             {items.map((item) => {
                 const active = pathname === item.href;
@@ -427,6 +432,45 @@ export default function Sidebar() {
                 />
             )}
         </aside>
+    );
+}
+
+function SidebarActionLink({
+    href,
+    icon,
+    label,
+    title,
+}: {
+    href: string;
+    icon: string;
+    label: string;
+    title: string;
+}) {
+    return (
+        <Link
+            href={href}
+            title={title}
+            aria-label={label}
+            style={{
+                width: 68,
+                border: '1px solid #d6d6d6',
+                borderRadius: 10,
+                background: '#fff',
+                color: '#333',
+                cursor: 'pointer',
+                padding: '7px 4px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                textDecoration: 'none',
+                boxSizing: 'border-box',
+            }}
+        >
+            <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
+            <span style={{ fontSize: 10, lineHeight: 1.1 }}>{label}</span>
+        </Link>
     );
 }
 

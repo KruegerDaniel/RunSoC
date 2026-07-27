@@ -14,6 +14,6 @@ def _parse_config(data: dict) -> tuple[dict, dict, int]:
         "cluster_overflow_scale": mem_penalty_scale.get("clusterOverflowScale", 1),
     }
 
-    max_chain_jitter = config.get("maxChainJitter", 0)
+    max_chain_jitter = config.get("maxChainJitter", -1)
 
     return comms_weight, mem_scale, max_chain_jitter
