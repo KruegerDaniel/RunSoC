@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {Runnable} from '@/lib/types/runnable';
+import {getBackendUrl} from '@/lib/backendUrl';
 
 const globalAny = globalThis as any;
 if (!globalAny.__resultStore) {
@@ -9,16 +10,14 @@ const resultStore: Record<string, unknown> = globalAny.__resultStore;
 
 export const runtime = 'nodejs'; // NOT edge
 
-const BACKEND_URL =
-    process.env.BACKEND_URL || 'http://backend:5001/api/schedule';
-
 export async function POST(req: NextRequest) {
     const data = await req.json();
+    const backendUrl = getBackendUrl('/api/schedule');
 
     try {
-        console.log('[simulate/POST] calling backend:', BACKEND_URL);
+        console.log('[simulate/POST] calling backend:', backendUrl);
 
-        const backendRes = await fetch(BACKEND_URL, {
+        const backendRes = await fetch(backendUrl, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
                     error: 'Backend responded with error',
                     status: backendRes.status,
                     body: text,
-                    target: BACKEND_URL,
+                    target: backendUrl,
                 },
                 {status: 502},
             );
@@ -68,7 +67,7 @@ export async function POST(req: NextRequest) {
             {
                 error: 'Failed to connect to backend',
                 details: String(e),
-                target: BACKEND_URL,
+                target: backendUrl,
             },
             {status: 500},
         );

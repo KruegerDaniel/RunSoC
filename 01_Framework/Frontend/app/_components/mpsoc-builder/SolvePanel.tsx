@@ -1,24 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SolverResultExplorer } from '@/app/_components';
 import type { SolverResult } from '@/app/_components';
 import { useJsonModel } from '@/lib/JsonModelContext';
 
 const SOLVER = 'cpsat';
 const RESULT_STORAGE_KEY = 'runsoc:v2:last-cpsat-result';
-
-function getBackendUrl() {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-
-    if (!backendUrl) {
-        throw new Error(
-            'NEXT_PUBLIC_BACKEND_URL is not configured. Add it to .env.local, for example NEXT_PUBLIC_BACKEND_URL=http://localhost:8000',
-        );
-    }
-
-    return backendUrl.replace(/\/$/, '');
-}
 
 function isSolverResult(value: unknown): value is SolverResult {
     if (!value || typeof value !== 'object') return false;
@@ -76,13 +64,7 @@ export default function SolvePanel() {
     const [rawResponse, setRawResponse] = useState<unknown>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const endpoint = useMemo(() => {
-        try {
-            return `${getBackendUrl()}/api/solve/${SOLVER}`;
-        } catch {
-            return null;
-        }
-    }, []);
+    const endpoint = `/v2/api/solve/${SOLVER}`;
 
     useEffect(() => {
         setResult(readStoredResult());
@@ -94,10 +76,7 @@ export default function SolvePanel() {
         setRawResponse(null);
 
         try {
-            const backendUrl = getBackendUrl();
-            const url = `${backendUrl}/api/solve/${SOLVER}`;
-
-            const response = await fetch(url, {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -178,7 +157,7 @@ export default function SolvePanel() {
                             marginTop: 12,
                             fontFamily: 'monospace',
                             fontSize: 13,
-                            color: endpoint ? '#333' : 'crimson',
+                            color: '#333',
                             background: '#f6f6f6',
                             border: '1px solid #e3e3e3',
                             borderRadius: 8,
@@ -186,7 +165,7 @@ export default function SolvePanel() {
                             display: 'inline-block',
                         }}
                     >
-                        POST {endpoint ?? '{backend}/api/solve/cpsat'}
+                        POST {endpoint}
                     </div>
                 </div>
 

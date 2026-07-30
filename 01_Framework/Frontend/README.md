@@ -56,10 +56,10 @@ The app expects the following values:
 
 ```
 NEXT_PUBLIC_FRONTEND_ORIGIN=http://localhost:3000
-BACKEND_URL=http://localhost:5001/api/schedule
+BACKEND_URL=http://localhost:5001
 ```
 
-If you're running the frontend manually (not with Docker), put these in a `.env` file inside the **Frontend** folder.
+If you're running the frontend manually (not with Docker), put these in a `.env` file inside the **Frontend** folder. `BACKEND_URL` is read by Next.js server routes only; browser code calls the frontend's local API routes.
 
 When using Docker Compose, these values are already passed in automatically, so you normally don’t need to set anything.
 
