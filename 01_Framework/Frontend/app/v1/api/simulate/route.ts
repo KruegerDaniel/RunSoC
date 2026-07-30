@@ -1,6 +1,5 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {Runnable} from '@/lib/types/runnable';
-import {getBackendUrl} from '@/lib/backendUrl';
 
 const globalAny = globalThis as any;
 if (!globalAny.__resultStore) {
@@ -9,6 +8,18 @@ if (!globalAny.__resultStore) {
 const resultStore: Record<string, unknown> = globalAny.__resultStore;
 
 export const runtime = 'nodejs'; // NOT edge
+
+const DEFAULT_BACKEND_URL = 'http://localhost:5001';
+
+function getBackendUrl(path = '') {
+    const baseUrl = (process.env.BACKEND_URL || DEFAULT_BACKEND_URL)
+        .replace(/\/+$/, '')
+        .replace(/\/api\/schedule$/i, '');
+
+    if (!path) return baseUrl;
+
+    return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+}
 
 export async function POST(req: NextRequest) {
     const data = await req.json();
